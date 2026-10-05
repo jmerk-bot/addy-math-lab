@@ -1822,6 +1822,43 @@ header {
   align-self: center;
 }
 
+/* "Are you sure?" right under the button that asked */
+.confirm-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--pink);
+  background: rgba(236, 72, 153, 0.1);
+  animation: pop 0.25s ease;
+}
+
+.confirm-bar p {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-main);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.confirm-yes {
+  min-height: 40px;
+  padding: 6px 16px;
+  border-radius: 10px;
+  border: none;
+  background: var(--pink-strong);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
 /* Settings: a switch per row */
 .setting-row {
   display: flex;

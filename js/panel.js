@@ -12,7 +12,14 @@ const $ = (id) => document.getElementById(id);
 
 let tab = 'playbook';
 
+// Big changes (a new base level, unlocking a play, resetting the season) ask
+// first, right where the tap was, with Yes and Cancel. Not the browser's
+// confirm(): some browsers and webviews block it, which would make these
+// buttons do nothing. { action, value } while a question is showing.
+let pending = null;
+
 export function openCoach(open) {
+  pending = null;
   $('coach').hidden = !open;
   if (open) renderCoach();
 }
@@ -23,6 +30,20 @@ export function renderCoach() {
 }
 
 const pct = (rate) => (rate === null ? '—' : `${Math.round(rate * 100)}%`);
+
+// The question for a pending change, shown when it matches action (and value)
+function confirmHtml(action, value) {
+  if (!pending || pending.action !== action || (value !== undefined && pending.value !== value)) return '';
+  const { ask, yes } = GUARDED[action];
+  return `
+    <div class="confirm-bar" role="alertdialog">
+      <p>${ask(pending.value)}</p>
+      <div class="confirm-actions">
+        <button class="quiet-btn small" data-action="confirm-no">Cancel</button>
+        <button class="confirm-yes" data-action="confirm-yes">${yes(pending.value)}</button>
+      </div>
+    </div>`;
+}
 
 // ---------- Playbook tab ----------
 
@@ -40,7 +61,7 @@ function playbookHtml() {
             <span class="play-meta">${id === next ? 'Unlocks next, when shots are going well' : 'Later on the path'}</span>
           </div>
           <button class="quiet-btn small" data-action="unlock" data-value="${id}">Unlock</button>
-        </div>`;
+        </div>${confirmHtml('unlock', id)}`;
     }
     const on = state.playbook.includes(id);
     const status = !p.introduced ? ' <span class="new-badge">New</span>' : '';
@@ -147,6 +168,7 @@ function statsHtml() {
       <h3>Season</h3>
       <p class="coach-season">${s.games} games · ${s.points} points · season high ${s.high}${s.highQuick ? ` · quick-game high ${s.highQuick}` : ''} · ${s.threes} swishes · best streak ${s.bestStreak}</p>
       <button class="quiet-btn" data-action="reset-season">Reset season</button>
+      ${confirmHtml('reset-season')}
     </div>
   `;
 }
@@ -185,6 +207,7 @@ function settingsHtml() {
       <h3>Base level</h3>
       <p class="coach-note">Sets every unlocked play to this level. New plays start one level below it.</p>
       <div class="level-row four">${levels}</div>
+      ${confirmHtml('level')}
     </div>
   `;
 }
@@ -213,8 +236,7 @@ function setPlayLevel(value) {
 }
 
 function unlock(id) {
-  if (!confirm(`Unlock ${PLAYS[id].label} now? Coach Cheryl will introduce it at the next tip-off.`)) return;
-  unlockPlay(state, id);
+  if (PLAYS[id] && !state.progress[id].unlocked) unlockPlay(state, id);
 }
 
 // A camp switches on its unlocked plays (keeping at least one)
@@ -225,7 +247,6 @@ function setCamp(key) {
 
 function setBaseLevel(level) {
   if (!LEVELS.includes(level)) return;
-  if (!confirm(`Set every unlocked play to ${LEVEL_NAMES[level]}?`)) return;
   state.level = level;
   for (const id of PATH) {
     const p = state.progress[id];
@@ -255,24 +276,50 @@ function setLength(key) {
 }
 
 function clearSeason() {
-  if (!confirm('Reset the season record? Games, points, highs and the week go back to zero. Plays and levels stay.')) return;
   resetSeason();
   resetGame();
   renderGame();
 }
 
+// The changes that ask first: the question, the Yes label, and what Yes does
+const GUARDED = {
+  level: {
+    ask: (level) => `Set every unlocked play to ${LEVEL_NAMES[level]}? Each play starts that level from its first step.`,
+    yes: (level) => `Set to ${LEVEL_NAMES[level]}`,
+    run: setBaseLevel
+  },
+  unlock: {
+    ask: (id) => `Unlock ${PLAYS[id].label} now? Coach Cheryl will introduce it at the next tip-off.`,
+    yes: () => 'Unlock',
+    run: unlock
+  },
+  'reset-season': {
+    ask: () => 'Reset the season record? Games, points, highs and the week go back to zero. Plays and levels stay.',
+    yes: () => 'Reset season',
+    run: clearSeason
+  }
+};
+
+const ask = (action) => (value) => { pending = { action, value }; };
+
 // Each runs, then the panel redraws
 const ACTIONS = {
-  'coach-tab': (value) => { tab = value; },
+  'coach-tab': (value) => { tab = value; pending = null; },
   'play': togglePlay,
   'play-level': setPlayLevel,
-  'unlock': unlock,
+  'unlock': ask('unlock'),
   'camp': setCamp,
-  'level': setBaseLevel,
+  'level': ask('level'),
   'op': toggleOp,
   'setting': toggleSetting,
   'length': setLength,
-  'reset-season': clearSeason
+  'reset-season': ask('reset-season'),
+  'confirm-yes': () => {
+    const change = pending;
+    pending = null;
+    if (change) GUARDED[change.action].run(change.value);
+  },
+  'confirm-no': () => { pending = null; }
 };
 
 export const coachActions = Object.fromEntries(Object.entries(ACTIONS).map(([name, run]) =>
