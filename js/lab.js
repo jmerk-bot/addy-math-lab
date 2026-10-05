@@ -306,14 +306,21 @@ function renderNumberLine(a, b, op, result) {
   segment.style.width = `${pct}%`;
   segment.classList.toggle('multiply', op === '×');
 
+  // The basketball jumps to its new spot whenever the result changes
   const landing = $('vector-landing');
   landing.style.left = `${pct}%`;
-  landing.textContent = result;
+  const num = $('vector-landing-num');
+  if (num.textContent !== String(result)) {
+    num.textContent = result;
+    landing.classList.remove('jump');
+    void landing.offsetWidth; // restart the animation
+    landing.classList.add('jump');
+  }
 
   const hint = $('vector-hint');
-  if (op === '+') hint.textContent = `Hop forward +${b}`;
-  else if (op === '-') hint.textContent = `Hop backward −${b}`;
-  else if (op === '×') hint.textContent = `${a} hops of ${b}`;
+  if (op === '+') hint.textContent = `Jump forward +${b}`;
+  else if (op === '-') hint.textContent = `Jump backward −${b}`;
+  else if (op === '×') hint.textContent = `${a} jumps of ${b}`;
   else hint.textContent = `Landing: ${result}`;
 
   let ticks = '';

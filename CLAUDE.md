@@ -12,7 +12,7 @@ Both apps are served from `https://jmerk-bot.github.io`, so they share the same 
 
 - No build step, no dependencies, no frameworks. Plain HTML, CSS and ES modules. Keep it that way unless asked.
 - Every path must be **relative** (`./sw.js`, `css/styles.css`), because the site is served from `/addy-math-lab/`, not the domain root.
-- Two modes: `game` (`js/game.js`) and `lab`, shown as **Practice** (`js/lab.js`). Settings live in the Coach panel (`js/main.js`): level, operations, season reset.
+- Two modes: `game` (`js/game.js`) and `lab`, shown as **Practice** (`js/lab.js`). Settings live in the Coach panel, labeled **Ask Coach Cheryl** (`js/main.js`): level, operations, season reset.
 - Buttons declare `data-action` (and optionally `data-value`). Handlers live in the `actions` map in `js/main.js`, and state is saved after every action.
 - Rendering is state-driven: change `state`, then call `renderGame()` / `renderLab()`.
 - Show or hide elements with the `hidden` attribute. CSS has `[hidden] { display: none !important; }`.
@@ -24,6 +24,8 @@ Both apps are served from `https://jmerk-bot.github.io`, so they share the same 
 - `playChime(step)` plays step `step` of an ascending C-major pentatonic scale from C4 (bigger numbers sound higher, without wrapping; everything past 20 plays the top note). Steppers pass the value itself.
 - Game answers come from the on-screen number pad (`pressKey()` in `js/game.js`), which fills the mystery box directly. Don't add `<input>` fields: the Android keyboard pushes the layout around. Digits chime their own pentatonic note.
 - A quiet spell mid-shot (20 s) only pulses the answer box; there is no timer, shot clock or penalty. Keep it that way.
+- The header shows the Minnesota Lynx logo (`img/lynx-logo.svg`, a non-free file from Wikipedia). Keep the footer disclaimer (not affiliated, no rights claimed) whenever team names or logos appear.
+- The Practice number line marks the result with a basketball that jumps when it moves; the hint says "Jump forward / backward".
 - The app runs fullscreen (`"display": "fullscreen"` in the manifest). `js/pwa.js` also requests fullscreen on tap for copies installed before that change.
 
 ## When adding files

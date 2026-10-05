@@ -105,17 +105,12 @@ header {
   gap: 10px;
 }
 
-.brand-icon {
-  width: 42px;
-  height: 42px;
+.brand-logo {
+  width: 54px;
+  height: auto;
   flex: none;
-  filter: drop-shadow(0 3px 10px rgba(120, 190, 32, 0.45));
-}
-
-.brand-icon svg {
-  width: 100%;
-  height: 100%;
   display: block;
+  filter: drop-shadow(0 3px 10px rgba(120, 190, 32, 0.3));
 }
 
 .brand h1 {
@@ -1039,8 +1034,8 @@ header {
   border-radius: 999px;
   position: relative;
   width: 100%;
-  margin-top: 26px;
-  margin-bottom: 8px;
+  margin-top: 50px;
+  margin-bottom: 12px;
 }
 
 .vector-fill {
@@ -1050,25 +1045,52 @@ header {
   width: 0;
   border-radius: 999px;
   background: var(--accent-blue);
-  transition: width 0.25s ease-out;
+  transition: width 0.35s ease-out;
 }
 
 .vector-fill.multiply {
   background: var(--green);
 }
 
+/* The basketball sits on the track at the result, with the number above it */
 .vector-landing {
   position: absolute;
-  bottom: 12px;
+  bottom: -9px;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: left 0.35s ease-out;
+  pointer-events: none;
+}
+
+.landing-num {
   background: var(--pink);
   color: var(--green-ink);
   font-size: 12px;
   font-weight: 900;
-  padding: 2px 7px;
+  padding: 1px 7px;
   border-radius: 999px;
-  transition: left 0.25s ease-out;
   font-variant-numeric: tabular-nums;
+}
+
+.landing-ball {
+  width: 26px;
+  height: 26px;
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+/* A little jump each time the ball moves */
+.vector-landing.jump .landing-ball {
+  animation: ball-jump 0.4s ease-out;
+}
+
+@keyframes ball-jump {
+  0% { transform: translateY(0) rotate(0); }
+  40% { transform: translateY(-14px) rotate(-90deg); }
+  100% { transform: translateY(0) rotate(-180deg); }
 }
 
 .ticks-container {
@@ -1241,16 +1263,34 @@ header {
 @media (prefers-reduced-motion: reduce) {
   .mystery-box.wiggle,
   .mystery-box.nudge,
-  .call {
+  .call,
+  .vector-landing.jump .landing-ball {
     animation: none;
   }
 }
 
-/* ---------- Footer ---------- */
+/* ---------- Footer: disclaimer and version ---------- */
+
+.app-footer {
+  margin-top: auto;
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 10px;
+  text-align: center;
+}
+
+.disclaimer {
+  font-size: 10px;
+  line-height: 1.4;
+  color: #4d5c52;
+}
 
 .app-version {
-  margin-top: auto;
   font-size: 10px;
   font-family: monospace;
-  color: var(--card-border);
+  color: #3a463e;
 }

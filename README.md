@@ -16,7 +16,7 @@ It's a Progressive Web App (PWA). Install it once on a tablet and it opens full-
 
 - **Game:** tap **Tip-off**, answer each shot on the number pad and tap ✓. The scoreboard shows points, the quarter and the shots left. Halftime comes after the second quarter; the final buzzer shows a stat line and the season record (games, points, season high).
 - **Need a look?** sends the current shot to Practice with the hidden number left blank, so it can be built with the blocks, then it's back to the game to shoot.
-- **Coach** (top right) sets the level (Rookie: within 20 and facts to 5; Starter: within 50 and facts to 10; All-Star: within 100 and facts to 12), which operations the game uses, and can reset the season.
+- **Ask Coach Cheryl** (top right) sets the level (Rookie: within 20 and facts to 5; Starter: within 50 and facts to 10; All-Star: within 100 and facts to 12), which operations the game uses, and can reset the season.
 
 ## How updates reach the tablet
 
@@ -39,7 +39,7 @@ Then open http://localhost:8766. The footer shows `dev` locally. A computer keyb
 
 | Path | What it is |
 | --- | --- |
-| `index.html` | Page markup. Buttons use `data-action` / `data-value` instead of inline handlers. |
+| `index.html` | Page markup, including the footer disclaimer. Buttons use `data-action` / `data-value` instead of inline handlers. |
 | `css/styles.css` | All styles. Colors are CSS variables at the top. |
 | `js/main.js` | Entry point: wires buttons, switches Game / Practice, runs the Coach panel, boots the app. |
 | `js/game.js` | Game: problem generator by level, scoring, quarters, halftime and the final. |
@@ -51,6 +51,7 @@ Then open http://localhost:8766. The footer shows `dev` locally. A computer keyb
 | `js/version.js` | Version placeholder, stamped at deploy time. |
 | `sw.js` | Service worker: network-first with offline fallback. |
 | `manifest.webmanifest` | App name, colors, icons. |
+| `img/lynx-logo.svg` | Team logo in the header (from Wikipedia; see the disclaimer). |
 | `icons/` | `icon.svg` / `icon-maskable.svg` sources plus rendered PNGs. |
 | `scripts/make-icons.sh` | Re-renders the PNG icons from the SVGs (needs Google Chrome). |
 
