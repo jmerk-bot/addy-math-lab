@@ -18,6 +18,8 @@ const APP_SHELL = [
   './css/styles.css',
   './js/main.js',
   './js/state.js',
+  './js/math.js',
+  './js/plays.js',
   './js/audio.js',
   './js/lab.js',
   './js/game.js',

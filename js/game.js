@@ -1,111 +1,102 @@
-// Game: four quarters of five shots. Each shot is a problem with one hidden
-// number. A swish (right on the first try) is 3 points, a make after a miss is
-// 2, and a miss is an offensive rebound: same shot, keep the ball.
+// Game: four quarters of five shots. Each shot comes from one of the plays in
+// the playbook (js/plays.js). A swish (right on the first try) is 3 points, a
+// make after a miss is 2, and a miss is an offensive rebound: same shot, keep
+// the ball.
 
-import { state, resetGame, LEVELS, QUARTERS, SHOTS_PER_QUARTER, OP_LABEL } from './state.js';
+import { state, resetGame, QUARTERS, SHOTS_PER_QUARTER } from './state.js';
+import { fmt } from './math.js';
+import { PLAYS, choosePlay } from './plays.js';
 import { playChime, playSuccessChord, playBuzzer } from './audio.js';
 import { callMake, callMiss, finalHeadline } from './lines.js';
 
 const $ = (id) => document.getElementById(id);
 
-const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
-const pickFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
 export const MAX_POINTS = QUARTERS * SHOTS_PER_QUARTER * 3;
 
-// Every answer is 144 or less, so three digits is enough
-const MAX_DIGITS = 3;
+// Answers stay under 100,000, so five digits is enough
+const MAX_DIGITS = 5;
 
-// A new shot within the current level. Rookie keeps + and − within 20 (sums
-// of single digits); the bigger levels use two-digit numbers.
-function newProblem() {
+// A new shot from the playbook. The game opens with an Equations shot as a
+// warm-up when that play is on.
+function newProblem({ warmUp = false } = {}) {
   const game = state.game;
-  const { sumMax, factMax } = LEVELS[state.level];
-  const op = pickFrom(state.ops.length ? state.ops : ['+']);
-  let a, b, ans;
-
-  if (op === '+') {
-    if (sumMax <= 20) {
-      a = randInt(2, 9);
-      b = randInt(2, 8);
-    } else {
-      ans = randInt(20, sumMax);
-      a = randInt(10, ans - 2);
-      b = ans - a;
-    }
-    ans = a + b;
-  } else if (op === '-') {
-    if (sumMax <= 20) {
-      ans = randInt(1, 8);
-      b = randInt(2, 7);
-      a = ans + b;
-    } else {
-      a = randInt(20, sumMax);
-      b = randInt(2, a - 1);
-      ans = a - b;
-    }
-  } else if (op === '×') {
-    a = randInt(2, factMax);
-    b = randInt(2, factMax);
-    ans = a * b;
-  } else {
-    b = randInt(2, factMax);
-    ans = randInt(1, factMax);
-    a = ans * b;
-  }
-
-  const hideAns = Math.random() > 0.35;
-  game.problem = {
-    a,
-    b,
-    op,
-    target: ans,
-    missing: hideAns ? 'result' : 'b',
-    expected: hideAns ? ans : b
-  };
+  const kind = warmUp && state.playbook.includes('equation') ? 'equation' : choosePlay(state.playbook);
+  const play = PLAYS[kind];
+  game.problem = play.generate({ level: state.level, tier: 0, ops: state.ops });
+  const count = play.boxes(game.problem).length;
+  game.entries = Array(count).fill('');
+  game.stale = Array(count).fill(false);
+  game.box = 0;
   game.misses = 0;
-  game.entry = '';
-  game.replaceOnType = false;
   game.call = '';
 }
 
 export function tipOff() {
   resetGame();
   state.game.status = 'shot';
-  newProblem();
+  newProblem({ warmUp: true });
   renderGame();
 }
 
-// Number pad: key is '0'–'9', 'back' or 'solve'
+// Number pad: key is '0'–'9', 'back' or 'solve'. Digits go into the active box.
 export function pressKey(key) {
   const game = state.game;
   if (game.status !== 'shot' || !game.problem) return;
 
   if (key === 'solve') {
-    submitAnswer();
+    solve();
     return;
   }
 
+  const i = game.box;
   if (key === 'back') {
-    if (!game.entry) return;
-    game.entry = game.entry.slice(0, -1);
-    game.replaceOnType = false;
-    playChime(0);
+    if (game.entries[i]) {
+      game.entries[i] = game.entries[i].slice(0, -1);
+      game.stale[i] = false;
+      playChime(0);
+    } else if (i > 0) {
+      game.box = i - 1; // an empty box steps back to the one before it
+    } else {
+      return;
+    }
   } else {
-    if (game.replaceOnType || game.entry === '0') game.entry = '';
-    game.replaceOnType = false;
-    if (game.entry.length >= MAX_DIGITS) return;
-    game.entry += key;
+    if (game.stale[i] || game.entries[i] === '0') game.entries[i] = '';
+    game.stale[i] = false;
+    if (game.entries[i].length >= MAX_DIGITS) return;
+    game.entries[i] += key;
     playChime(Number(key));
   }
   renderGame();
 }
 
+// Tapping an answer box makes it the one the number pad types into
+export function selectBox(i) {
+  const game = state.game;
+  if (game.status !== 'shot' || !Number.isInteger(i) || i < 0 || i >= game.entries.length) return;
+  game.box = i;
+  renderGame();
+}
+
+// ✓ moves on to the next empty box, and shoots once every box is filled
+function solve() {
+  const game = state.game;
+  if (!game.entries[game.box]) return; // ignore ✓ on an empty box
+  const empty = game.entries.findIndex((entry) => !entry);
+  if (empty !== -1) {
+    game.box = empty;
+    playChime(5);
+    renderGame();
+    return;
+  }
+  submitAnswer();
+}
+
 function submitAnswer() {
   const game = state.game;
-  if (!game.entry) return; // ignore an empty Solve tap
+  const answers = PLAYS[game.problem.kind].answers(game.problem);
+  const wrong = answers.map((answer, i) => parseInt(game.entries[i], 10) !== answer);
 
-  if (parseInt(game.entry, 10) === game.problem.expected) {
+  if (!wrong.includes(true)) {
     const three = game.misses === 0;
     game.lastPoints = three ? 3 : 2;
     game.points += game.lastPoints;
@@ -123,13 +114,16 @@ function submitAnswer() {
     playSuccessChord();
     renderGame();
   } else {
+    // Each missed box keeps its guess on screen until it's typed in again
     game.misses += 1;
     game.streak = 0;
-    game.replaceOnType = true; // keep the guess on screen until the next digit
+    game.stale = wrong;
+    game.box = wrong.indexOf(true);
     game.call = callMiss(game.call);
     playChime(1);
     renderGame();
-    $('shot-equation').querySelector('.mystery-box')?.classList.add('wiggle');
+    const boxes = $('shot-prompt').querySelectorAll('.mystery-box');
+    wrong.forEach((isWrong, i) => isWrong && boxes[i]?.classList.add('wiggle'));
   }
 }
 
@@ -222,17 +216,37 @@ export function renderGame() {
 function renderShot() {
   const game = state.game;
   const q = game.problem;
+  const play = PLAYS[q.kind];
   const made = game.status === 'made';
+  const boxes = play.boxes(q);
+  const multi = boxes.length > 1;
 
-  // The mystery box shows what's been typed on the number pad, in the color
-  // of the number it stands for (amber for B, pink for the answer)
-  const role = q.missing === 'b' ? 'role-b' : 'role-target';
-  const fill = made ? 'correct' : game.entry ? 'filled' : '';
-  const box = `<span class="mystery-box ${role} ${fill}">${game.entry || '?'}</span>`;
-  const slotB = q.missing === 'b' ? box : `<span class="num-b">${q.b}</span>`;
-  const slotResult = q.missing === 'b' ? `<span class="num-target">${q.target}</span>` : box;
-  $('shot-equation').innerHTML =
-    `<span class="num-a">${q.a}</span><span class="op-symbol">${OP_LABEL[q.op]}</span>${slotB}<span class="equals">=</span>${slotResult}`;
+  // Each answer box shows what's been typed, in the color of the number it
+  // stands for. With two boxes, the one not being typed into is dimmed.
+  const box = (i) => {
+    const entry = game.entries[i];
+    const classes = ['mystery-box', `role-${boxes[i].role}`];
+    if (made) classes.push('correct');
+    else {
+      if (entry) classes.push('filled');
+      if (multi && i !== game.box) classes.push('idle');
+    }
+    return `<button class="${classes.join(' ')}" data-action="box" data-value="${i}" aria-label="Answer ${i + 1}">${entry ? fmt(Number(entry)) : '?'}</button>`;
+  };
+
+  const prompt = $('shot-prompt');
+  prompt.innerHTML = play.prompt(q, box);
+  // Long equations get a smaller font so they stay on one line
+  const answers = play.answers(q);
+  const extra = game.entries.reduce((sum, entry, i) =>
+    sum + Math.max(0, (entry ? fmt(Number(entry)) : '?').length - fmt(answers[i]).length), 0);
+  const length = play.text(q, { solved: true }).length + extra;
+  prompt.classList.toggle('long', length > 17 && length <= 20);
+  prompt.classList.toggle('xlong', length > 20);
+
+  const cue = boxes[game.box]?.cue;
+  $('shot-cue').hidden = !(cue && !made && game.misses === 0 && !game.entries[game.box]);
+  $('shot-cue').textContent = cue || '';
 
   const call = $('shot-call');
   call.hidden = !game.call;

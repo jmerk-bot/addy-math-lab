@@ -411,6 +411,30 @@ header {
   font-variant-numeric: tabular-nums;
 }
 
+.shot-equation.long {
+  font-size: 40px;
+  gap: 11px;
+}
+
+.shot-equation.xlong {
+  font-size: 34px;
+  gap: 9px;
+}
+
+/* The R between a quotient and its remainder */
+.rem-label {
+  color: var(--accent-amber);
+  font-size: 0.7em;
+}
+
+/* "Now the leftover": the next step, once the first box is done */
+.shot-cue {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-muted);
+  margin-top: -4px;
+}
+
 .op-symbol {
   background: rgba(120, 190, 32, 0.15);
   color: var(--green-light);
@@ -430,7 +454,10 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  font: inherit;
   font-size: 0.85em;
+  line-height: 1;
+  transition: opacity 0.15s ease;
 }
 
 /* Digits typed on the number pad, in the color of the number they stand for */
@@ -438,12 +465,22 @@ header {
   border-style: solid;
 }
 
-.mystery-box.filled.role-b {
+.mystery-box.filled.role-a {
+  color: var(--accent-blue);
+}
+
+.mystery-box.filled.role-b,
+.mystery-box.filled.role-remainder {
   color: var(--accent-amber);
 }
 
 .mystery-box.filled.role-target {
   color: var(--pink);
+}
+
+/* With two answer boxes, the one not being typed into is dimmed */
+.mystery-box.idle {
+  opacity: 0.45;
 }
 
 .mystery-box.correct {
@@ -676,7 +713,7 @@ header {
 
 .controls-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -686,8 +723,8 @@ header {
   border-radius: 14px;
   padding: 10px 12px;
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -695,7 +732,6 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
-  align-self: flex-start;
 }
 
 .swatch-circle {
@@ -754,7 +790,7 @@ header {
 .stepper-val {
   font-size: 24px;
   font-weight: 900;
-  min-width: 44px;
+  min-width: 64px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -828,12 +864,20 @@ header {
   font-weight: 900;
 }
 
-/* ---------- Manipulatives: base-ten blocks (+ / − past 20) ---------- */
+/* ---------- Manipulatives: base-ten blocks (+ / − past 20, ÷ by place) ---------- */
+/* --u is the size of one unit cell; rods are 10 cells tall, flats 10 × 10 */
 
 .blocks-rows {
+  --u: 10px;
+  --g: 1px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.blocks-rows.compact,
+.share-grid {
+  --u: 5px;
 }
 
 .blocks-row {
@@ -868,14 +912,27 @@ header {
   flex-wrap: wrap;
 }
 
-.rod {
-  display: grid;
-  grid-auto-rows: 8px;
-  gap: 1px;
-  width: 13px;
+.compact .blocks {
+  gap: 6px;
 }
 
-.rod.made {
+.rod {
+  display: grid;
+  grid-template-rows: repeat(10, var(--u, 10px));
+  grid-template-columns: var(--u, 10px);
+  gap: var(--g, 1px);
+}
+
+.flat {
+  display: grid;
+  grid-template-rows: repeat(10, var(--u, 10px));
+  grid-auto-flow: column;
+  grid-auto-columns: var(--u, 10px);
+  gap: var(--g, 1px);
+}
+
+.rod.made,
+.flat.made {
   outline: 2px solid var(--pink);
   outline-offset: 2px;
   border-radius: 3px;
@@ -883,8 +940,9 @@ header {
 
 .units {
   display: grid;
-  grid-template-columns: repeat(5, 12px);
-  gap: 2px;
+  grid-template-columns: repeat(5, var(--u, 10px));
+  grid-auto-rows: var(--u, 10px);
+  gap: var(--g, 1px);
 }
 
 .cell {
@@ -892,9 +950,9 @@ header {
   background: var(--accent-blue);
 }
 
-.units .cell {
-  width: 12px;
-  height: 12px;
+.compact .cell,
+.share-grid .cell {
+  border-radius: 1px;
 }
 
 .cell.amber {
@@ -904,6 +962,12 @@ header {
 .cell.gone {
   background: transparent;
   border: 1px dashed var(--grey);
+}
+
+/* Small crossed-out cells read better as a faint fill than as dashes */
+.compact .cell.gone {
+  border: none;
+  background: rgba(158, 162, 162, 0.3);
 }
 
 /* ---------- Manipulatives: array (×) ---------- */
@@ -941,6 +1005,52 @@ header {
 
 .array-total {
   color: var(--pink);
+}
+
+/* ---------- Manipulatives: area model (× past 12) ---------- */
+
+.area-grid {
+  display: grid;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+.area-col {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.area-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.area-cell {
+  border-radius: 8px;
+  background: var(--green);
+  color: var(--green-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 900;
+  box-shadow: 0 2px 6px rgba(120, 190, 32, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+
+.area-sum {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Manipulatives: equal sharing (÷) ---------- */
@@ -1006,6 +1116,8 @@ header {
 }
 
 .remainder-row {
+  --u: 9px;
+  --g: 2px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1015,6 +1127,23 @@ header {
   padding: 6px 12px;
   border-radius: 8px;
   align-self: flex-start;
+}
+
+/* Sharing by place value: the steps, then each group's blocks */
+.share-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.share-grid .bucket {
+  min-height: 0;
+  padding: 6px;
+}
+
+.share-grid .blocks {
+  gap: 3px;
+  justify-content: center;
 }
 
 /* ---------- Number line ---------- */
@@ -1188,11 +1317,22 @@ header {
 
 .level-row {
   display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.play-row {
+  display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
-.level-btn {
+.coach-section.muted {
+  opacity: 0.45;
+}
+
+.level-btn,
+.play-btn {
   min-height: 64px;
   border-radius: 12px;
   border: 1px solid var(--raised-edge);
@@ -1217,14 +1357,21 @@ header {
   color: var(--text-muted);
 }
 
-.level-btn.active {
+.level-btn.active,
+.play-btn.active {
   background: var(--green);
   border-color: var(--green-light);
   color: var(--green-ink);
 }
 
-.level-btn.active .level-desc {
+.level-btn.active .level-desc,
+.play-btn.active .level-desc {
   color: var(--green-ink);
+}
+
+.play-btn .level-desc {
+  text-align: center;
+  line-height: 1.3;
 }
 
 .op-row {

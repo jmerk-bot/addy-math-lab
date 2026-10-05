@@ -1,10 +1,11 @@
 // Entry point: wires up buttons, switches between Game and Practice, runs the
 // Coach panel, and boots the app.
 
-import { state, loadState, saveState, resetGame, resetSeason, LEVELS, OP_LABEL } from './state.js';
+import { state, loadState, saveState, resetGame, resetSeason } from './state.js';
+import { LEVELS, PLAYS, PLAY_IDS } from './plays.js';
 import { playChime } from './audio.js';
 import { clampLab, renderLab, setLabOp, stepA, stepB } from './lab.js';
-import { tipOff, pressKey, nextShot, resumeHalf, renderGame } from './game.js';
+import { tipOff, pressKey, selectBox, nextShot, resumeHalf, renderGame } from './game.js';
 import { initPwa } from './pwa.js';
 
 const $ = (id) => document.getElementById(id);
@@ -26,27 +27,23 @@ function renderLabBanner() {
   const q = state.game.problem;
   const show = state.mode === 'lab' && state.game.status === 'shot' && !!q;
   $('lab-shot-banner').hidden = !show;
-  if (!show) return;
-  const b = q.missing === 'b' ? '?' : q.b;
-  const result = q.missing === 'b' ? q.target : '?';
-  $('banner-equation').textContent = `${q.a} ${OP_LABEL[q.op]} ${b} = ${result}`;
+  if (show) $('banner-equation').textContent = PLAYS[q.kind].text(q);
 }
 
 function sendShotToLab() {
   const q = state.game.problem;
   if (!q || state.game.status !== 'shot') return;
 
-  state.lab.op = q.op;
-  state.lab.a = q.a;
-  // Not solved for them: B starts at the baseline so they build up to the answer
-  state.lab.b = (q.op === '×' || q.op === '÷') ? 1 : 0;
+  // Not solved for them: the hidden number starts at a baseline, to be built up
+  const { op, a, b } = PLAYS[q.kind].toLab(q);
+  state.lab = { op, a, b };
   clampLab();
 
   renderLab();
   switchMode('lab');
 }
 
-// ---------- Coach panel: level, operations, season ----------
+// ---------- Coach panel: level, playbook, operations, season ----------
 
 function openCoach(open) {
   $('coach').hidden = !open;
@@ -57,19 +54,38 @@ function renderCoach() {
   document.querySelectorAll('.level-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.value === state.level);
   });
+  document.querySelectorAll('.play-btn').forEach((btn) => {
+    btn.classList.toggle('active', state.playbook.includes(btn.dataset.value));
+  });
   document.querySelectorAll('.filter-pill').forEach((pill) => {
     pill.classList.toggle('active', state.ops.includes(pill.dataset.value));
   });
+  // The operation pills only matter when Equations is in the playbook
+  $('coach-ops').classList.toggle('muted', !state.playbook.includes('equation'));
   const { games, points, high, threes, bestStreak } = state.season;
   $('coach-season').textContent =
     `${games} games · ${points} points · season high ${high} · ${threes} swishes · best streak ${bestStreak}`;
 }
 
 function setLevel(level) {
-  if (!LEVELS[level]) return;
+  if (!LEVELS.includes(level)) return;
   state.level = level;
   renderCoach();
   playChime(4);
+}
+
+// Keep at least one play on. A shot already on screen is left alone.
+function togglePlay(id) {
+  if (!PLAY_IDS.includes(id)) return;
+  const book = state.playbook;
+  if (book.includes(id)) {
+    if (book.length === 1) return;
+    state.playbook = book.filter((x) => x !== id);
+  } else {
+    state.playbook = PLAY_IDS.filter((x) => x === id || book.includes(x));
+  }
+  renderCoach();
+  playChime(2);
 }
 
 // Keep at least one operation on. A shot already on screen is left alone.
@@ -105,7 +121,7 @@ function armNudge() {
   if (state.mode !== 'game' || state.game.status !== 'shot') return;
   nudgeTimer = setTimeout(() => {
     if (document.visibilityState !== 'visible') return;
-    document.querySelector('#shot-equation .mystery-box')?.classList.add('nudge');
+    document.querySelector('#shot-prompt .mystery-box:not(.idle)')?.classList.add('nudge');
   }, NUDGE_AFTER_MS);
 }
 
@@ -117,10 +133,12 @@ const actions = {
   'coach-open': () => openCoach(true),
   'coach-close': () => openCoach(false),
   'level': (value) => setLevel(value),
+  'play': (value) => togglePlay(value),
   'op': (value) => toggleOp(value),
   'reset-season': () => clearSeason(),
   'tip-off': () => tipOff(),
   'key': (value) => pressKey(value),
+  'box': (value) => selectBox(Number(value)),
   'next-shot': () => nextShot(),
   'resume': () => resumeHalf(),
   'to-lab': () => sendShotToLab(),
@@ -139,13 +157,15 @@ document.addEventListener('click', (event) => {
 });
 
 // A physical keyboard drives the Game too (handy when testing on a computer):
-// digits, Backspace and Enter on a shot; Enter also moves the game along.
+// digits, Backspace, ← → between answer boxes, and Enter to shoot or move on.
 document.addEventListener('keydown', (event) => {
   if (state.mode !== 'game' || event.metaKey || event.ctrlKey || event.altKey) return;
   const { status } = state.game;
   let handled = true;
   if (/^[0-9]$/.test(event.key)) pressKey(event.key);
   else if (event.key === 'Backspace') pressKey('back');
+  else if (event.key === 'ArrowLeft') selectBox(state.game.box - 1);
+  else if (event.key === 'ArrowRight') selectBox(state.game.box + 1);
   else if (event.key !== 'Enter') handled = false;
   else if (status === 'shot') pressKey('solve');
   else if (status === 'made') nextShot();

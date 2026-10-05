@@ -58,7 +58,9 @@
       </section>
 
       <section id="game-shot" class="card shot-card" hidden>
-        <div id="shot-equation" class="shot-equation"></div>
+        <!-- The shot, drawn by its play (js/plays.js), with tappable answer boxes -->
+        <div id="shot-prompt" class="shot-equation"></div>
+        <p id="shot-cue" class="shot-cue" hidden></p>
         <div id="shot-call" class="call" hidden></div>
 
         <!-- On-screen number pad. Digits fill the mystery box, so the tablet keyboard never opens. -->
@@ -140,7 +142,7 @@
         </div>
       </section>
 
-      <!-- Steppers: ±10 and ±1 -->
+      <!-- Steppers: ±100, ±10 and ±1 -->
       <section class="controls-grid">
         <div class="control-box">
           <div class="control-header">
@@ -148,11 +150,13 @@
             <span id="label-a" class="control-label">First (A)</span>
           </div>
           <div class="stepper-row">
+            <button class="stepper-btn stepper-ten" data-action="step-a" data-value="-100">−100</button>
             <button class="stepper-btn stepper-ten" data-action="step-a" data-value="-10">−10</button>
             <button class="stepper-btn" data-action="step-a" data-value="-1">−</button>
             <span id="val-a" class="stepper-val num-a">6</span>
             <button class="stepper-btn" data-action="step-a" data-value="1">+</button>
             <button class="stepper-btn stepper-ten" data-action="step-a" data-value="10">+10</button>
+            <button class="stepper-btn stepper-ten" data-action="step-a" data-value="100">+100</button>
           </div>
         </div>
 
@@ -162,16 +166,18 @@
             <span id="label-b" class="control-label">Second (B)</span>
           </div>
           <div class="stepper-row">
+            <button class="stepper-btn stepper-ten" data-action="step-b" data-value="-100">−100</button>
             <button class="stepper-btn stepper-ten" data-action="step-b" data-value="-10">−10</button>
             <button class="stepper-btn" data-action="step-b" data-value="-1">−</button>
             <span id="val-b" class="stepper-val num-b">3</span>
             <button class="stepper-btn" data-action="step-b" data-value="1">+</button>
             <button class="stepper-btn stepper-ten" data-action="step-b" data-value="10">+10</button>
+            <button class="stepper-btn stepper-ten" data-action="step-b" data-value="100">+100</button>
           </div>
         </div>
       </section>
 
-      <!-- Visual manipulative display area (ten-frames / base-ten blocks / array / buckets) -->
+      <!-- Visual manipulative display area (ten-frames / base-ten blocks / array / area model / sharing) -->
       <section id="manipulative-card" class="card"></section>
 
       <!-- Number line -->
@@ -203,7 +209,7 @@
     </div>
   </main>
 
-  <!-- Coach panel: level, operations and the season record -->
+  <!-- Coach panel: level, playbook, operations and the season record -->
   <div id="coach" class="overlay" hidden>
     <section class="card coach-card">
       <div class="coach-head">
@@ -216,21 +222,43 @@
         <div class="level-row">
           <button class="level-btn" data-action="level" data-value="rookie">
             <span class="level-name">Rookie</span>
-            <span class="level-desc">to 20 · facts to 5</span>
+            <span class="level-desc">within 20 · facts to 5</span>
           </button>
           <button class="level-btn" data-action="level" data-value="starter">
             <span class="level-name">Starter</span>
-            <span class="level-desc">to 50 · facts to 10</span>
+            <span class="level-desc">within 100 · facts to 10</span>
           </button>
           <button class="level-btn" data-action="level" data-value="allstar">
             <span class="level-name">All-Star</span>
-            <span class="level-desc">to 100 · facts to 12</span>
+            <span class="level-desc">3-digit · facts to 12</span>
+          </button>
+          <button class="level-btn" data-action="level" data-value="mvp">
+            <span class="level-name">MVP</span>
+            <span class="level-desc">to 1,000 · big × and ÷</span>
           </button>
         </div>
       </div>
 
       <div class="coach-section">
-        <h3>Operations in the game</h3>
+        <h3>Playbook</h3>
+        <div class="play-row">
+          <button class="play-btn" data-action="play" data-value="equation">
+            <span class="level-name">Equations</span>
+            <span class="level-desc">facts · find the missing number</span>
+          </button>
+          <button class="play-btn" data-action="play" data-value="bignumbers">
+            <span class="level-name">Big numbers</span>
+            <span class="level-desc">regrouping · big ×</span>
+          </button>
+          <button class="play-btn" data-action="play" data-value="leftovers">
+            <span class="level-name">Leftovers</span>
+            <span class="level-desc">÷ with remainders</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="coach-ops" class="coach-section">
+        <h3>Equations use</h3>
         <div class="op-row">
           <button class="filter-pill" data-action="op" data-value="+">+</button>
           <button class="filter-pill" data-action="op" data-value="-">−</button>

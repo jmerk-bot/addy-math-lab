@@ -4,3 +4,6 @@ _site/
 # Personal notes for Claude Code; kept out of the public repo
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Private build plan; references personal context, so it stays out of the public repo
+improvements.md
