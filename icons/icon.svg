@@ -1,20 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Source for the "any" app icons. Run scripts/make-icons.sh after editing. -->
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ec4899"/>
-      <stop offset="1" stop-color="#be185d"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="#070a07"/>
   <g id="mark">
-    <!-- "A" built from strokes so it doesn't depend on fonts -->
-    <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M136 392 L256 118 L376 392" stroke-width="66"/>
-      <path d="M190 296 L322 296" stroke-width="54"/>
+    <!-- A Lynx-green basketball with a pink ring -->
+    <circle cx="256" cy="256" r="186" fill="#78be20" stroke="#f472b6" stroke-width="12"/>
+    <g fill="none" stroke="#3f6f12" stroke-width="16" stroke-linecap="round">
+      <path d="M256 76 V436"/>
+      <path d="M76 256 H436"/>
+      <path d="M118 128 C190 190 190 322 118 384"/>
+      <path d="M394 128 C322 190 322 322 394 384"/>
     </g>
-    <!-- A blue counter and an amber diamond, like the ten-frame tokens -->
-    <circle cx="227" cy="378" r="24" fill="#3b82f6" stroke="#ffffff" stroke-width="6"/>
-    <rect x="270" y="359" width="38" height="38" rx="6" fill="#fbbf24" transform="rotate(45 289 378)"/>
+    <!-- "A" built from strokes so it doesn't depend on fonts -->
+    <g fill="none" stroke="#070a07" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M160 372 L256 140 L352 372" stroke-width="58"/>
+      <path d="M200 296 L312 296" stroke-width="48"/>
+    </g>
   </g>
 </svg>

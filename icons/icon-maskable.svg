@@ -2,19 +2,18 @@
   <!-- Source for the maskable icon (Android crops it to a circle or squircle)
        and the Apple touch icon. Full-bleed background, mark kept in the safe zone.
        Run scripts/make-icons.sh after editing. -->
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ec4899"/>
-      <stop offset="1" stop-color="#be185d"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="#070a07"/>
   <g transform="translate(256 256) scale(0.78) translate(-256 -256)">
-    <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M136 392 L256 118 L376 392" stroke-width="66"/>
-      <path d="M190 296 L322 296" stroke-width="54"/>
+    <circle cx="256" cy="256" r="186" fill="#78be20" stroke="#f472b6" stroke-width="12"/>
+    <g fill="none" stroke="#3f6f12" stroke-width="16" stroke-linecap="round">
+      <path d="M256 76 V436"/>
+      <path d="M76 256 H436"/>
+      <path d="M118 128 C190 190 190 322 118 384"/>
+      <path d="M394 128 C322 190 322 322 394 384"/>
     </g>
-    <circle cx="227" cy="378" r="24" fill="#3b82f6" stroke="#ffffff" stroke-width="6"/>
-    <rect x="270" y="359" width="38" height="38" rx="6" fill="#fbbf24" transform="rotate(45 289 378)"/>
+    <g fill="none" stroke="#070a07" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M160 372 L256 140 L352 372" stroke-width="58"/>
+      <path d="M200 296 L312 296" stroke-width="48"/>
+    </g>
   </g>
 </svg>
