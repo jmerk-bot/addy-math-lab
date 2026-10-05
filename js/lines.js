@@ -22,7 +22,14 @@ const MISS = [
   'Off the rim... rebound, Lynx ball!',
   'Rattles out. Still Lynx ball!',
   'Back iron. Grab it, go again!',
-  'Blocked! Get it back and go again!'
+  'So close! Grab the rebound, go again!'
+];
+
+// After "Show me how": still a basket, worth 1
+const ASSIST = [
+  'Assist from Coach Cheryl!',
+  'Coach drew it up, Addy finished it!',
+  'Great teamwork. Count it!'
 ];
 
 const HEATING_UP = 'Heating up! 🔥';
@@ -43,6 +50,10 @@ export function callMake({ three, streak, last }) {
 
 export function callMiss(last) {
   return pick(MISS, last);
+}
+
+export function callAssist(last) {
+  return pick(ASSIST, last);
 }
 
 export function finalHeadline({ points, maxPoints, newHigh }) {

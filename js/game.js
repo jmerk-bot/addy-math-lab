@@ -1,44 +1,71 @@
-// Game: four quarters of five shots. Each shot comes from one of the plays in
-// the playbook (js/plays.js). A swish (right on the first try) is 3 points, a
-// make after a miss is 2, and a miss is an offensive rebound: same shot, keep
-// the ball.
+// Game: quarters of five shots (four quarters, or two halves in a quick game).
+// js/coach.js picks each shot's play and moves the difficulty; js/plays.js
+// draws and checks the shot. A swish (right on the first try) is 3 points, a
+// make after a miss is 2, a make after "Show me how" is 1, and a miss is an
+// offensive rebound: same shot, keep the ball.
 
-import { state, resetGame, QUARTERS, SHOTS_PER_QUARTER } from './state.js';
+import { state, resetGame, SHOTS_PER_QUARTER, LENGTHS, dayKey } from './state.js';
 import { fmt } from './math.js';
-import { PLAYS, choosePlay } from './plays.js';
-import { playChime, playSuccessChord, playBuzzer } from './audio.js';
-import { callMake, callMiss, finalHeadline } from './lines.js';
+import { PLAYS, PATH, LEVEL_NAMES } from './plays.js';
+import { chooseShot, recordShot, afterGame, SEASON_RECENT } from './coach.js';
+import { playChime, playSuccessChord, playBuzzer, canSpeak, stopSpeaking } from './audio.js';
+import { callMake, callMiss, callAssist, finalHeadline } from './lines.js';
 
 const $ = (id) => document.getElementById(id);
 
-export const MAX_POINTS = QUARTERS * SHOTS_PER_QUARTER * 3;
-
 // Answers stay under 100,000, so five digits is enough
 const MAX_DIGITS = 5;
+const CHOICES = ['<', '=', '>'];
+const FILM_MAX = 6;
+const HELP_LABELS = ['Ask Coach Cheryl', 'More help', 'Show me how', 'Show me again'];
 
-// A new shot from the playbook. The game opens with an Equations shot as a
-// warm-up when that play is on.
-function newProblem({ warmUp = false } = {}) {
+export const maxPoints = (game) => game.periods * SHOTS_PER_QUARTER * 3;
+const inputOf = (p) => PLAYS[p.kind].input?.(p) || 'keypad';
+const show = (x) => (typeof x === 'number' || /^\d+$/.test(x) ? fmt(Number(x)) : x);
+
+// The next shot: a two-step play's second step, or whatever the coach calls
+function newProblem() {
   const game = state.game;
-  const kind = warmUp && state.playbook.includes('equation') ? 'equation' : choosePlay(state.playbook);
-  const play = PLAYS[kind];
-  game.problem = play.generate({ level: state.level, tier: 0, ops: state.ops });
-  const count = play.boxes(game.problem).length;
+  const prev = game.problem;
+  const follow = prev ? PLAYS[prev.kind].followUp?.(prev) : null;
+  let kind;
+  game.comfort = false;
+  if (follow) {
+    kind = prev.kind;
+    game.problem = follow;
+  } else {
+    const pick = chooseShot(state, game, { periods: game.periods, shotsPerPeriod: SHOTS_PER_QUARTER });
+    kind = pick.kind;
+    game.comfort = pick.comfort;
+    if (pick.comfort && game.calm > 0) game.calm -= 1;
+    game.problem = PLAYS[kind].generate({ level: state.progress[kind].level, tier: pick.tier, ops: state.ops });
+  }
+  // Both steps of a two-step play count toward a new play's shots
+  if (state.progress[kind].fresh > 0) game.freshShots += 1;
+  if (PLAYS[kind].reading) game.readingThisPeriod += 1;
+  game.used[kind] = (game.used[kind] || 0) + 1;
+  game.lastKinds = [...game.lastKinds, kind].slice(-3);
+
+  const count = PLAYS[kind].boxes(game.problem).length;
   game.entries = Array(count).fill('');
   game.stale = Array(count).fill(false);
   game.box = 0;
   game.misses = 0;
+  game.help = 0;
+  game.assisted = false;
   game.call = '';
+  stopSpeaking();
 }
 
 export function tipOff() {
-  resetGame();
+  resetGame(LENGTHS[state.settings.length].periods);
   state.game.status = 'shot';
-  newProblem({ warmUp: true });
+  newProblem();
   renderGame();
 }
 
-// Number pad: key is '0'–'9', 'back' or 'solve'. Digits go into the active box.
+// Number pad and choice keys: '0'–'9', '<' '=' '>', 'back' or 'solve'.
+// Keys go into the active answer box.
 export function pressKey(key) {
   const game = state.game;
   if (game.status !== 'shot' || !game.problem) return;
@@ -48,10 +75,11 @@ export function pressKey(key) {
     return;
   }
 
+  const choice = inputOf(game.problem) === 'choice';
   const i = game.box;
   if (key === 'back') {
     if (game.entries[i]) {
-      game.entries[i] = game.entries[i].slice(0, -1);
+      game.entries[i] = choice ? '' : game.entries[i].slice(0, -1);
       game.stale[i] = false;
       playChime(0);
     } else if (i > 0) {
@@ -59,7 +87,13 @@ export function pressKey(key) {
     } else {
       return;
     }
+  } else if (CHOICES.includes(key)) {
+    if (!choice) return;
+    game.entries[i] = key;
+    game.stale[i] = false;
+    playChime(CHOICES.indexOf(key) + 3);
   } else {
+    if (choice || !/^\d$/.test(key)) return;
     if (game.stale[i] || game.entries[i] === '0') game.entries[i] = '';
     game.stale[i] = false;
     if (game.entries[i].length >= MAX_DIGITS) return;
@@ -69,12 +103,30 @@ export function pressKey(key) {
   renderGame();
 }
 
-// Tapping an answer box makes it the one the number pad types into
+// Tapping an answer box makes it the one the keys type into
 export function selectBox(i) {
   const game = state.game;
   if (game.status !== 'shot' || !Number.isInteger(i) || i < 0 || i >= game.entries.length) return;
   game.box = i;
   renderGame();
+}
+
+// The "Ask Coach Cheryl" ladder: a hint, then a bit more, then "Show me how" (a
+// worked example; the shot is then worth 1). Returns true when the worked
+// example should open.
+export function askCoach() {
+  const game = state.game;
+  if (game.status !== 'shot') return false;
+  if (game.help < 2) {
+    game.help += 1;
+    playChime(6);
+    renderGame();
+    return false;
+  }
+  game.help = 3;
+  game.assisted = true;
+  renderGame();
+  return true;
 }
 
 // ✓ moves on to the next empty box, and shoots once every box is filled
@@ -93,15 +145,17 @@ function solve() {
 
 function submitAnswer() {
   const game = state.game;
-  const answers = PLAYS[game.problem.kind].answers(game.problem);
-  const wrong = answers.map((answer, i) => parseInt(game.entries[i], 10) !== answer);
+  const kind = game.problem.kind;
+  const answers = PLAYS[kind].answers(game.problem);
+  const wrong = answers.map((answer, i) => String(answer) !== game.entries[i]);
 
   if (!wrong.includes(true)) {
-    const three = game.misses === 0;
-    game.lastPoints = three ? 3 : 2;
+    const swish = game.misses === 0 && !game.assisted;
+    game.lastPoints = game.assisted ? 1 : swish ? 3 : 2;
     game.points += game.lastPoints;
     game.makes += 1;
-    if (three) {
+    if (game.assisted) game.assists += 1;
+    if (swish) {
       game.threes += 1;
       game.streak += 1;
       game.bestStreak = Math.max(game.bestStreak, game.streak);
@@ -110,7 +164,8 @@ function submitAnswer() {
     }
     game.shot += 1;
     game.status = 'made';
-    game.call = callMake({ three, streak: game.streak, last: game.call });
+    game.call = game.assisted ? callAssist(game.call) : callMake({ three: swish, streak: game.streak, last: game.call });
+    noteShot(kind, swish);
     playSuccessChord();
     renderGame();
   } else {
@@ -127,6 +182,18 @@ function submitAnswer() {
   }
 }
 
+// Progress on the play, the season's recent shots, the film room, and a couple
+// of familiar shots after a rough patch
+function noteShot(kind, swish) {
+  const game = state.game;
+  const change = recordShot(state.progress[kind], swish, { auto: state.settings.autoLevel });
+  if (change === 'levelUp') game.levelUps.push({ kind, level: state.progress[kind].level });
+  if (change === 'down' || change === 'levelDown') game.calm = Math.max(game.calm, 2);
+  if (game.misses >= 2 || game.assisted) game.calm = Math.max(game.calm, 1);
+  state.season.recent = [...state.season.recent, swish ? 1 : 0].slice(-SEASON_RECENT);
+  if (!swish && game.film.length < FILM_MAX) game.film.push(game.problem);
+}
+
 // After a make: the next shot, or the end of the quarter
 export function nextShot() {
   const game = state.game;
@@ -135,13 +202,16 @@ export function nextShot() {
   if (game.shot >= SHOTS_PER_QUARTER) {
     game.shot = 0;
     game.quarter += 1;
-    if (game.quarter > QUARTERS) {
+    game.readingThisPeriod = 0;
+    if (game.quarter > game.periods) {
       finishGame();
       return;
     }
-    if (game.quarter === QUARTERS / 2 + 1) {
+    if (game.quarter === game.periods / 2 + 1) {
       game.status = 'halftime';
       game.problem = null;
+      const used = Object.keys(game.used);
+      game.tipKind = used[Math.floor(Math.random() * used.length)] || 'equation';
       renderGame();
       return;
     }
@@ -164,20 +234,27 @@ function finishGame() {
   game.status = 'final';
   game.problem = null;
 
-  const newHigh = game.points > season.high;
+  const highKey = game.periods === 2 ? 'highQuick' : 'high';
+  const newHigh = game.points > season[highKey];
   season.games += 1;
   season.points += game.points;
-  season.high = Math.max(season.high, game.points);
+  season[highKey] = Math.max(season[highKey], game.points);
   season.threes += game.threes;
   season.bestStreak = Math.max(season.bestStreak, game.bestStreak);
+  const today = dayKey();
+  season.days[today] = (season.days[today] || 0) + 1;
+  season.days = Object.fromEntries(Object.entries(season.days).sort().slice(-60));
 
-  game.headline = finalHeadline({ points: game.points, maxPoints: MAX_POINTS, newHigh });
+  game.unlocked = afterGame(state, game) || '';
+  game.headline = finalHeadline({ points: game.points, maxPoints: maxPoints(game), newHigh });
   playBuzzer();
   renderGame();
 }
 
+// ---------- Rendering ----------
+
 export function renderGame() {
-  const { game, season } = state;
+  const { game } = state;
   const { status } = game;
 
   // Scoreboard
@@ -185,7 +262,7 @@ export function renderGame() {
   $('score-points').textContent = game.points;
   $('score-quarter').textContent = status === 'final' ? 'FINAL'
     : status === 'halftime' ? 'HALF'
-    : `Q${game.quarter}`;
+    : `${game.periods === 2 ? 'H' : 'Q'}${game.quarter}`;
   $('shot-dots').innerHTML = Array.from({ length: SHOTS_PER_QUARTER }, (_, i) =>
     `<span class="dot ${i < game.shot ? 'done' : ''}"></span>`).join('');
   const streak = $('score-streak');
@@ -197,20 +274,56 @@ export function renderGame() {
   $('game-halftime').hidden = status !== 'halftime';
   $('game-final').hidden = status !== 'final';
 
-  if (status === 'pregame') {
-    $('season-pregame').innerHTML = seasonHtml(season);
-  } else if (status === 'halftime') {
-    $('half-points').textContent = game.points;
-  } else if (status === 'final') {
-    $('final-points').textContent = game.points;
-    $('final-headline').textContent = game.headline;
-    const putBacks = game.makes - game.threes;
-    $('final-stats').textContent =
-      `${plural(game.threes, 'swish', 'swishes')} · ${plural(putBacks, 'put-back', 'put-backs')} · best streak ${game.bestStreak}`;
-    $('season-final').innerHTML = seasonHtml(season);
-  } else {
-    renderShot();
-  }
+  if (status === 'pregame') renderPregame();
+  else if (status === 'halftime') renderHalftime();
+  else if (status === 'final') renderFinal();
+  else renderShot();
+}
+
+// Today's plays (a new one marked), the week, the season
+function renderPregame() {
+  const { season } = state;
+  $('pregame-sub').textContent = `${LENGTHS[state.settings.length].desc} · swish for 3`;
+  const on = PATH.filter((id) => state.progress[id].unlocked && state.playbook.includes(id));
+  $('pregame-plays').innerHTML = on.map((id) => {
+    const isNew = !state.progress[id].introduced;
+    return `<span class="play-chip ${isNew ? 'new' : ''}">${PLAYS[id].label}${isNew ? ' ⭐ New' : ''}</span>`;
+  }).join('');
+  const newPlay = on.find((id) => !state.progress[id].introduced);
+  $('pregame-new').hidden = !newPlay;
+  if (newPlay) $('pregame-new').textContent = `New play today: ${PLAYS[newPlay].label}. Coach Cheryl will show you how it works first.`;
+  $('week-pregame').innerHTML = weekHtml(season);
+  $('season-pregame').innerHTML = seasonHtml(season, state.settings.length === 'quick');
+}
+
+function renderHalftime() {
+  const { game } = state;
+  $('half-points').textContent = game.points;
+  $('half-tip').textContent = (PLAYS[game.tipKind] || PLAYS.equation).tip;
+}
+
+function renderFinal() {
+  const { game, season } = state;
+  $('final-points').textContent = game.points;
+  $('final-headline').textContent = game.headline;
+  const putBacks = game.makes - game.threes - game.assists;
+  const parts = [plural(game.threes, 'swish', 'swishes'), plural(putBacks, 'put-back', 'put-backs')];
+  if (game.assists) parts.push(plural(game.assists, 'assist', 'assists'));
+  parts.push(`best streak ${game.bestStreak}`);
+  $('final-stats').textContent = parts.join(' · ');
+
+  const ups = $('final-levelups');
+  ups.hidden = !game.levelUps.length;
+  ups.innerHTML = game.levelUps.map((u) => `<li>Moved up: ${PLAYS[u.kind].label} → ${LEVEL_NAMES[u.level]} ⭐</li>`).join('');
+
+  const unlock = $('final-unlock');
+  unlock.hidden = !PLAYS[game.unlocked];
+  if (PLAYS[game.unlocked]) unlock.textContent = `Next game: Coach Cheryl has a new play for you, ${PLAYS[game.unlocked].label} ⭐`;
+
+  const film = $('film-btn');
+  film.hidden = !game.film.length;
+  film.textContent = `Film room 🎬 (${game.film.length})`;
+  $('season-final').innerHTML = seasonHtml(season, game.periods === 2);
 }
 
 function renderShot() {
@@ -231,18 +344,27 @@ function renderShot() {
       if (entry) classes.push('filled');
       if (multi && i !== game.box) classes.push('idle');
     }
-    return `<button class="${classes.join(' ')}" data-action="box" data-value="${i}" aria-label="Answer ${i + 1}">${entry ? fmt(Number(entry)) : '?'}</button>`;
+    return `<button class="${classes.join(' ')}" data-action="box" data-value="${i}" aria-label="Answer ${i + 1}">${entry ? show(entry) : '?'}</button>`;
   };
 
   const prompt = $('shot-prompt');
+  const story = play.layout === 'story';
+  prompt.className = story ? 'shot-story' : 'shot-equation';
   prompt.innerHTML = play.prompt(q, box);
-  // Long equations get a smaller font so they stay on one line
-  const answers = play.answers(q);
-  const extra = game.entries.reduce((sum, entry, i) =>
-    sum + Math.max(0, (entry ? fmt(Number(entry)) : '?').length - fmt(answers[i]).length), 0);
-  const length = play.text(q, { solved: true }).length + extra;
-  prompt.classList.toggle('long', length > 17 && length <= 20);
-  prompt.classList.toggle('xlong', length > 20);
+  if (!story) {
+    // Long equations get a smaller font so they stay on one line
+    const answers = play.answers(q);
+    const extra = game.entries.reduce((sum, entry, i) =>
+      sum + Math.max(0, (entry ? show(entry) : '?').length - show(answers[i]).length), 0);
+    const length = play.text(q, { solved: true }).length + extra;
+    prompt.classList.toggle('long', length > 17 && length <= 20);
+    prompt.classList.toggle('xlong', length > 20);
+  }
+
+  const step = play.stepLabel?.(q);
+  $('shot-step').hidden = !step;
+  $('shot-step').textContent = step || '';
+  $('speak-btn').hidden = made || !(play.reading && state.settings.speech && canSpeak());
 
   const cue = boxes[game.box]?.cue;
   $('shot-cue').hidden = !(cue && !made && game.misses === 0 && !game.entries[game.box]);
@@ -251,27 +373,59 @@ function renderShot() {
   const call = $('shot-call');
   call.hidden = !game.call;
   call.className = `call ${made ? 'made' : 'miss'}`;
-  call.innerHTML = made
-    ? `<span class="pts">+${game.lastPoints}</span>${game.call}`
-    : game.call;
+  call.innerHTML = made ? `<span class="pts">+${game.lastPoints}</span>${game.call}` : game.call;
 
-  $('shot-keypad').hidden = made;
-  $('to-lab-btn').hidden = made;
+  // Coach's note: the hint, then a little more
+  let note = '';
+  if (!made && game.assisted) note = 'Coach Cheryl showed you how. Your shot!';
+  else if (!made && game.help >= 1) {
+    note = `<b>Coach says:</b> ${play.hint(q)}`;
+    if (game.help >= 2) note += `<br>${play.equation ? `Try it as math: ${play.equation(q)}` : play.steps(q)[0]}`;
+  }
+  $('shot-note').hidden = !note;
+  $('shot-note').innerHTML = note;
+
+  // After a make on a word problem, the math behind it
+  const strip = $('shot-strip');
+  strip.hidden = !(made && play.equation);
+  if (made && play.equation) strip.textContent = play.equation(q, { solved: true });
+
+  const choice = inputOf(q) === 'choice';
+  $('shot-keypad').hidden = made || choice;
+  $('shot-choices').hidden = made || !choice;
+  $('shot-links').hidden = made;
+  $('help-btn').textContent = HELP_LABELS[Math.min(game.help, 3)];
   $('shot-made').hidden = !made;
   $('next-btn').textContent = nextLabel(game);
+  $('game-shot').classList.toggle('made', made);
 }
 
 function nextLabel(game) {
   if (game.shot < SHOTS_PER_QUARTER) return 'Next shot ➔';
+  if (game.periods === 2) return game.quarter === 1 ? 'Halftime ➔' : 'Final buzzer ➔';
   return ['End of the 1st ➔', 'Halftime ➔', 'End of the 3rd ➔', 'Final buzzer ➔'][game.quarter - 1];
 }
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-function seasonHtml(s) {
+function seasonHtml(s, quick) {
   return `
     <div class="stat"><span class="stat-val">${s.games}</span><span class="stat-key">Games</span></div>
-    <div class="stat"><span class="stat-val">${s.points}</span><span class="stat-key">Points</span></div>
-    <div class="stat"><span class="stat-val">${s.high}</span><span class="stat-key">Season high</span></div>
+    <div class="stat"><span class="stat-val">${fmt(s.points)}</span><span class="stat-key">Points</span></div>
+    <div class="stat"><span class="stat-val">${quick ? s.highQuick : s.high}</span><span class="stat-key">${quick ? 'Quick-game high' : 'Season high'}</span></div>
   `;
+}
+
+// The last seven days, a dot for each, filled on days with a game. No streaks.
+export function weekHtml(season) {
+  let dots = '';
+  let games = 0;
+  for (let back = 6; back >= 0; back--) {
+    const day = new Date();
+    day.setDate(day.getDate() - back);
+    const count = season.days[dayKey(day)] || 0;
+    games += count;
+    dots += `<span class="week-day ${count ? 'played' : ''} ${back === 0 ? 'today' : ''}"><span class="week-dot"></span>${'SMTWTFS'[day.getDay()]}</span>`;
+  }
+  return `<div class="week">${dots}</div><p class="week-note">${games === 1 ? '1 game' : `${games} games`} this week</p>`;
 }

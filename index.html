@@ -30,7 +30,7 @@
         <button id="tab-game" class="mode-btn active" data-action="mode" data-value="game">Game 🏀</button>
         <button id="tab-lab" class="mode-btn" data-action="mode" data-value="lab">Practice</button>
       </div>
-      <button class="coach-btn" data-action="coach-open">Ask Coach Cheryl</button>
+      <button class="coach-btn" data-action="coach-open">Change the Game</button>
     </div>
   </header>
 
@@ -52,53 +52,90 @@
 
       <section id="game-pregame" class="card center-card">
         <h2>Game time</h2>
-        <p class="card-sub">4 quarters · 5 shots each · swish for 3</p>
+        <p id="pregame-sub" class="card-sub">4 quarters · 20 shots · swish for 3</p>
+        <div id="pregame-plays" class="play-chips" aria-label="Plays in today's game"></div>
+        <p id="pregame-new" class="new-note" hidden></p>
         <button class="big-btn" data-action="tip-off">Tip-off 🏀</button>
+        <div id="week-pregame" class="week-wrap"></div>
         <div id="season-pregame" class="season"></div>
       </section>
 
       <section id="game-shot" class="card shot-card" hidden>
-        <!-- The shot, drawn by its play (js/plays.js), with tappable answer boxes -->
-        <div id="shot-prompt" class="shot-equation"></div>
-        <p id="shot-cue" class="shot-cue" hidden></p>
-        <div id="shot-call" class="call" hidden></div>
-
-        <!-- On-screen number pad. Digits fill the mystery box, so the tablet keyboard never opens. -->
-        <div id="shot-keypad" class="keypad" role="group" aria-label="Number pad">
-          <button class="key" data-action="key" data-value="1">1</button>
-          <button class="key" data-action="key" data-value="2">2</button>
-          <button class="key" data-action="key" data-value="3">3</button>
-          <button class="key" data-action="key" data-value="4">4</button>
-          <button class="key" data-action="key" data-value="5">5</button>
-          <button class="key" data-action="key" data-value="6">6</button>
-          <button class="key" data-action="key" data-value="7">7</button>
-          <button class="key" data-action="key" data-value="8">8</button>
-          <button class="key" data-action="key" data-value="9">9</button>
-          <button class="key key-back" data-action="key" data-value="back" aria-label="Delete">
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 5H8.5L3 12l5.5 7H21a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/>
-              <path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>
-            </svg>
-          </button>
-          <button class="key" data-action="key" data-value="0">0</button>
-          <button class="key key-solve" data-action="key" data-value="solve" aria-label="Shoot">
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12.5l4.5 4.5L19 7.5"/>
-            </svg>
-          </button>
+        <div class="shot-main">
+          <div class="shot-top">
+            <span id="shot-step" class="shot-step" hidden></span>
+            <button id="speak-btn" class="speak-btn" data-action="speak" aria-label="Read it to me" hidden>🔊</button>
+          </div>
+          <!-- The shot, drawn by its play (js/plays.js), with tappable answer boxes -->
+          <div id="shot-prompt" class="shot-equation"></div>
+          <p id="shot-cue" class="shot-cue" hidden></p>
+          <div id="shot-call" class="call" hidden></div>
+          <p id="shot-note" class="coach-note-line" hidden></p>
+          <p id="shot-strip" class="equation-strip" hidden></p>
+          <div id="shot-made" class="shot-made" hidden>
+            <button id="next-btn" class="big-btn" data-action="next-shot">Next shot ➔</button>
+          </div>
         </div>
 
-        <div id="shot-made" class="shot-made" hidden>
-          <button id="next-btn" class="big-btn" data-action="next-shot">Next shot ➔</button>
+        <div class="shot-pad">
+          <!-- On-screen number pad. Digits fill the active answer box, so the tablet keyboard never opens. -->
+          <div id="shot-keypad" class="keypad" role="group" aria-label="Number pad">
+            <button class="key" data-action="key" data-value="1">1</button>
+            <button class="key" data-action="key" data-value="2">2</button>
+            <button class="key" data-action="key" data-value="3">3</button>
+            <button class="key" data-action="key" data-value="4">4</button>
+            <button class="key" data-action="key" data-value="5">5</button>
+            <button class="key" data-action="key" data-value="6">6</button>
+            <button class="key" data-action="key" data-value="7">7</button>
+            <button class="key" data-action="key" data-value="8">8</button>
+            <button class="key" data-action="key" data-value="9">9</button>
+            <button class="key key-back" data-action="key" data-value="back" aria-label="Delete">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 5H8.5L3 12l5.5 7H21a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/>
+                <path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>
+              </svg>
+            </button>
+            <button class="key" data-action="key" data-value="0">0</button>
+            <button class="key key-solve" data-action="key" data-value="solve" aria-label="Shoot">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.5l4.5 4.5L19 7.5"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Comparing: three big keys instead of digits -->
+          <div id="shot-choices" class="choice-pad" role="group" aria-label="Compare" hidden>
+            <button class="key key-choice" data-action="key" data-value="&lt;" aria-label="Less than">&lt;</button>
+            <button class="key key-choice" data-action="key" data-value="=" aria-label="Equal to">=</button>
+            <button class="key key-choice" data-action="key" data-value="&gt;" aria-label="Greater than">&gt;</button>
+            <button class="key key-solve wide" data-action="key" data-value="solve" aria-label="Shoot">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.5l4.5 4.5L19 7.5"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <button id="to-lab-btn" class="link-btn" data-action="to-lab">Need a look? Practice 🧪</button>
+        <div id="shot-links" class="shot-links">
+          <button id="to-lab-btn" class="link-btn" data-action="to-lab">Go Practice This Play</button>
+          <button id="help-btn" class="link-btn" data-action="help">Ask Coach Cheryl</button>
+        </div>
       </section>
 
       <section id="game-halftime" class="card center-card" hidden>
         <h2>Halftime</h2>
         <p class="big-number"><span id="half-points">0</span> <span class="big-number-unit">points</span></p>
-        <p class="card-sub">Stretch. Water. Shake it out.</p>
+        <div class="breathe" aria-hidden="true">
+          <svg class="breathe-ball" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10.5" fill="#f26b1d" stroke="#1c0f05" stroke-width="1.2"/>
+            <g fill="none" stroke="#1c0f05" stroke-width="1" stroke-linecap="round">
+              <path d="M12 1.5v21"/><path d="M1.5 12h21"/>
+              <path d="M4.6 4.6c3.2 3 3.2 11.8 0 14.8"/><path d="M19.4 4.6c-3.2 3-3.2 11.8 0 14.8"/>
+            </g>
+          </svg>
+        </div>
+        <p class="card-sub">Breathe with the ball: in as it grows, out as it shrinks.</p>
+        <p class="coach-tip"><b>Coach's tip:</b> <span id="half-tip"></span></p>
         <button class="big-btn" data-action="resume">Start the 2nd half ➔</button>
       </section>
 
@@ -107,7 +144,12 @@
         <p class="big-number"><span id="final-points">0</span> <span class="big-number-unit">points</span></p>
         <p id="final-headline" class="headline"></p>
         <p id="final-stats" class="card-sub"></p>
-        <button class="big-btn" data-action="tip-off">New game 🏀</button>
+        <ul id="final-levelups" class="level-ups" hidden></ul>
+        <p id="final-unlock" class="new-note" hidden></p>
+        <div class="final-actions">
+          <button id="film-btn" class="link-btn" data-action="film" hidden>Film room 🎬</button>
+          <button class="big-btn" data-action="tip-off">New game 🏀</button>
+        </div>
         <div id="season-final" class="season"></div>
       </section>
     </div>
@@ -209,72 +251,26 @@
     </div>
   </main>
 
-  <!-- Coach panel: level, playbook, operations and the season record -->
+  <!-- "Change the Game", for the grown-up: the playbook and training path, stats, settings -->
   <div id="coach" class="overlay" hidden>
     <section class="card coach-card">
       <div class="coach-head">
-        <h2>Coach Cheryl</h2>
+        <h2>Change the Game</h2>
         <button class="close-btn" data-action="coach-close" aria-label="Close">✕</button>
       </div>
-
-      <div class="coach-section">
-        <h3>Level</h3>
-        <div class="level-row">
-          <button class="level-btn" data-action="level" data-value="rookie">
-            <span class="level-name">Rookie</span>
-            <span class="level-desc">within 20 · facts to 5</span>
-          </button>
-          <button class="level-btn" data-action="level" data-value="starter">
-            <span class="level-name">Starter</span>
-            <span class="level-desc">within 100 · facts to 10</span>
-          </button>
-          <button class="level-btn" data-action="level" data-value="allstar">
-            <span class="level-name">All-Star</span>
-            <span class="level-desc">3-digit · facts to 12</span>
-          </button>
-          <button class="level-btn" data-action="level" data-value="mvp">
-            <span class="level-name">MVP</span>
-            <span class="level-desc">to 1,000 · big × and ÷</span>
-          </button>
-        </div>
+      <div class="coach-tabs" role="tablist">
+        <button class="coach-tab active" data-action="coach-tab" data-value="playbook">Playbook</button>
+        <button class="coach-tab" data-action="coach-tab" data-value="stats">Stats</button>
+        <button class="coach-tab" data-action="coach-tab" data-value="settings">Settings</button>
       </div>
-
-      <div class="coach-section">
-        <h3>Playbook</h3>
-        <div class="play-row">
-          <button class="play-btn" data-action="play" data-value="equation">
-            <span class="level-name">Equations</span>
-            <span class="level-desc">facts · find the missing number</span>
-          </button>
-          <button class="play-btn" data-action="play" data-value="bignumbers">
-            <span class="level-name">Big numbers</span>
-            <span class="level-desc">regrouping · big ×</span>
-          </button>
-          <button class="play-btn" data-action="play" data-value="leftovers">
-            <span class="level-name">Leftovers</span>
-            <span class="level-desc">÷ with remainders</span>
-          </button>
-        </div>
-      </div>
-
-      <div id="coach-ops" class="coach-section">
-        <h3>Equations use</h3>
-        <div class="op-row">
-          <button class="filter-pill" data-action="op" data-value="+">+</button>
-          <button class="filter-pill" data-action="op" data-value="-">−</button>
-          <button class="filter-pill" data-action="op" data-value="×">×</button>
-          <button class="filter-pill" data-action="op" data-value="÷">÷</button>
-        </div>
-      </div>
-
-      <div class="coach-section">
-        <h3>Season</h3>
-        <p id="coach-season" class="coach-season"></p>
-        <button class="quiet-btn" data-action="reset-season">Reset season</button>
-      </div>
-
+      <div id="coach-body" class="coach-body"></div>
       <button class="big-btn" data-action="coach-close">Done</button>
     </section>
+  </div>
+
+  <!-- Sheets over the game: Coach's board, "Show me how", a new play's intro, the film room -->
+  <div id="sheet" class="overlay" hidden>
+    <section id="sheet-card" class="card sheet-card"></section>
   </div>
 
   <footer class="app-footer">

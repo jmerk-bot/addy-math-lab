@@ -395,10 +395,201 @@ header {
 }
 
 /* ---------- Shot card ---------- */
+/* The shot (prompt, calls, notes), the pad, then the help links. In
+   landscape the pad moves to the right (see the end of this file). */
 
 .shot-card {
+  display: grid;
+  grid-template-areas: "main" "pad" "links";
+  justify-items: center;
+  gap: 12px;
+}
+
+.shot-main {
+  grid-area: main;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.shot-pad {
+  grid-area: pad;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.shot-links {
+  grid-area: links;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.shot-top {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
 }
+
+.shot-top:has(> :not([hidden])) {
+  min-height: 34px;
+}
+
+/* Nothing to show up top (no step label, no read-aloud): no row at all */
+.shot-top:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+/* "Step 1 of 2" on two-step plays */
+.shot-step {
+  background: rgba(244, 114, 182, 0.14);
+  color: var(--pink);
+  font-size: 14px;
+  font-weight: 900;
+  padding: 5px 12px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
+.speak-btn {
+  margin-left: auto;
+  width: 46px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--raised-edge);
+  background: var(--raised);
+  font-size: 20px;
+}
+
+/* Word problems and other shots with a sentence: the text, then the answer line */
+.shot-story {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.story-text {
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 34em;
+  color: var(--text-main);
+}
+
+.story-text b {
+  font-weight: 900;
+}
+
+.story-text.words {
+  font-size: 28px;
+  font-style: italic;
+  color: var(--accent-blue);
+}
+
+.answer-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 40px;
+}
+
+.answer-line.big {
+  font-size: 44px;
+}
+
+.answer-unit {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-soft);
+}
+
+/* "1 foot = 12 inches" above a conversion */
+.fact-line {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--green-light);
+  background: rgba(120, 190, 32, 0.12);
+  border: 1px solid rgba(120, 190, 32, 0.35);
+  padding: 5px 14px;
+  border-radius: 999px;
+}
+
+.big-figure {
+  font-size: 52px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+/* The digit a place-value shot asks about */
+.digit-mark {
+  color: var(--pink);
+  border-bottom: 5px solid var(--pink);
+  padding: 0 2px;
+}
+
+.compare-line .mystery-box {
+  min-width: 1.4em;
+}
+
+.figure {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.figure-svg {
+  width: 100%;
+  height: auto;
+  max-height: 150px;
+  overflow: visible;
+}
+
+.figure-svg.angle-svg {
+  max-height: 190px;
+}
+
+.figure.big .figure-svg {
+  max-height: 240px;
+}
+
+/* Fractions: top over bottom */
+.frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.75em;
+  line-height: 1.05;
+}
+
+.frac-top {
+  padding: 0 6px 2px;
+  border-bottom: 4px solid currentColor;
+}
+
+.frac-bottom {
+  padding: 2px 6px 0;
+}
+
+.frac .mystery-box {
+  font-size: 0.85em;
+  margin: 2px 0;
+}
+
+.num-c { color: var(--text-main); }
 
 .shot-equation {
   display: flex;
@@ -550,6 +741,51 @@ header {
   display: flex;
   justify-content: center;
   padding: 10px 0;
+}
+
+/* Coach's hint under the shot */
+.coach-note-line {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-soft);
+  text-align: center;
+  background: rgba(120, 190, 32, 0.08);
+  border: 1px solid rgba(120, 190, 32, 0.28);
+  border-radius: 12px;
+  padding: 8px 14px;
+  max-width: 34em;
+}
+
+.coach-note-line b {
+  color: var(--green-light);
+}
+
+/* After a word problem: the math behind it */
+.equation-strip {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--green-light);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compare shots: < = > keys, then shoot */
+.choice-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.choice-pad .key-choice {
+  height: 96px;
+  font-size: 46px;
+  color: var(--pink);
+}
+
+.choice-pad .key.wide {
+  grid-column: 1 / -1;
 }
 
 /* ---------- Number pad ---------- */
@@ -1154,7 +1390,7 @@ header {
 
 .number-line {
   position: relative;
-  padding: 4px 6px;
+  padding: 4px 18px;
 }
 
 .number-line-track {
@@ -1222,15 +1458,19 @@ header {
   100% { transform: translateY(0) rotate(-180deg); }
 }
 
+/* Ticks are placed by value (left: value / range), centered on their line */
 .ticks-container {
-  display: flex;
-  justify-content: space-between;
+  position: relative;
+  height: 28px;
 }
 
 .tick-col {
+  position: absolute;
+  top: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  transform: translateX(-50%);
 }
 
 .tick-line {
@@ -1257,7 +1497,7 @@ header {
   transform: scale(1.2);
 }
 
-/* ---------- Coach panel ---------- */
+/* ---------- "Change the Game" panel (for the grown-up) ---------- */
 
 .overlay {
   position: fixed;
@@ -1405,14 +1645,925 @@ header {
   color: var(--text-soft);
 }
 
+.coach-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  background: var(--raised);
+  border: 1px solid var(--raised-edge);
+  border-radius: 12px;
+  padding: 3px;
+}
+
+.coach-tab {
+  min-height: 40px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.coach-tab.active {
+  background: var(--green);
+  color: var(--green-ink);
+}
+
+.coach-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.coach-note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.level-row.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.level-row.four .level-btn {
+  min-height: 48px;
+}
+
+.camp-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.camp-btn {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--raised-edge);
+  background: var(--raised);
+  color: var(--text-soft);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.camp-btn:active {
+  background: var(--pressed);
+}
+
+/* The training path: one row per play */
+.play-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.play-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--well);
+  border: 1px solid var(--line);
+}
+
+.play-item.off .play-info {
+  opacity: 0.55;
+}
+
+.play-item.locked {
+  opacity: 0.7;
+}
+
+.play-toggle {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 2px solid var(--raised-edge);
+  background: transparent;
+  color: var(--green-ink);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.play-toggle.active {
+  background: var(--green);
+  border-color: var(--green-light);
+}
+
+.play-lock {
+  flex: none;
+  width: 36px;
+  text-align: center;
+  font-size: 18px;
+}
+
+.play-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.play-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.play-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.new-badge {
+  display: inline-block;
+  background: var(--pink-strong);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 999px;
+  vertical-align: middle;
+  letter-spacing: 0.03em;
+}
+
+.level-stepper {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.level-stepper span {
+  min-width: 58px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--green-light);
+}
+
+.level-stepper button {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--raised-edge);
+  background: var(--raised);
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.quiet-btn.small {
+  min-height: 36px;
+  padding: 4px 12px;
+  align-self: center;
+}
+
+/* Settings: a switch per row */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--raised-edge);
+  background: var(--raised);
+  text-align: left;
+}
+
+.setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setting-label {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.setting-desc {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.switch {
+  flex: none;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--raised-edge);
+  transition: background 0.15s ease;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-soft);
+  transition: transform 0.15s ease;
+}
+
+.setting-row.active .switch {
+  background: var(--green);
+}
+
+.setting-row.active .switch::after {
+  transform: translateX(20px);
+  background: var(--green-ink);
+}
+
+/* Shot chart */
+.shot-chart {
+  width: 100%;
+  max-width: 360px;
+  align-self: center;
+}
+
+.shot-chart .court {
+  fill: #0b1209;
+  stroke: var(--raised-edge);
+  stroke-width: 2;
+}
+
+.shot-chart .zone {
+  stroke: #070a07;
+  stroke-width: 2;
+}
+
+.shot-chart .hoop {
+  fill: none;
+  stroke: #f26b1d;
+  stroke-width: 3;
+}
+
+.zone.locked { fill: #111a13; }
+.zone.cold-none { fill: #26382b; }
+.zone.cool { fill: #2c4a7a; }
+.zone.warm { fill: #4c7f12; }
+.zone.hot { fill: #c2307a; }
+
+.chart-name {
+  fill: var(--text-main);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.chart-rate {
+  fill: var(--text-soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chart-legend .key {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.chart-legend .key.hot { background: #c2307a; }
+.chart-legend .key.warm { background: #4c7f12; }
+.chart-legend .key.cool { background: #2c4a7a; }
+.chart-legend .key.cold-none { background: #26382b; }
+
+/* ---------- Pregame, halftime, final ---------- */
+
+.play-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.play-chip {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-soft);
+  background: var(--raised);
+  border: 1px solid var(--raised-edge);
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+.play-chip.new {
+  color: #fff;
+  background: rgba(236, 72, 153, 0.25);
+  border-color: var(--pink);
+}
+
+.new-note {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--pink);
+  max-width: 30em;
+}
+
+.week-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.week {
+  display: flex;
+  gap: 10px;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.week-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--raised-edge);
+}
+
+.week-day.played .week-dot {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.week-day.today {
+  color: var(--text-main);
+}
+
+.week-note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Halftime: a basketball to breathe with, in for 4 seconds, out for 4 */
+.breathe {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.breathe-ball {
+  width: 84px;
+  height: 84px;
+  animation: breathe 8s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(0.75); }
+  50% { transform: scale(1.3); }
+}
+
+.coach-tip {
+  font-size: 15px;
+  color: var(--text-soft);
+  max-width: 30em;
+  line-height: 1.4;
+}
+
+.coach-tip b {
+  color: var(--green-light);
+}
+
+.level-ups {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--green-light);
+}
+
+.final-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------- Sheets: Coach's board, Show me how, intros, film room ---------- */
+
+.sheet-card {
+  width: 100%;
+  max-width: 600px;
+  max-height: 100%;
+  overflow-y: auto;
+  gap: 14px;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sheet-head h2 {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--green-light);
+}
+
+.sheet-count {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.sheet-blurb {
+  font-size: 16px;
+  color: var(--text-soft);
+  line-height: 1.4;
+}
+
+.sheet-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+/* The shot, smaller, with plain boxes */
+.sheet-prompt {
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+}
+
+.sheet-prompt.shot-equation {
+  font-size: 36px;
+  flex-wrap: wrap;
+}
+
+.sheet-prompt .story-text {
+  font-size: 19px;
+}
+
+.sheet-prompt .answer-line {
+  font-size: 30px;
+}
+
+.sheet-prompt .big-figure {
+  font-size: 40px;
+}
+
+.steps {
+  list-style: none;
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.steps li {
+  counter-increment: step;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-main);
+  animation: pop 0.3s ease;
+}
+
+.steps li::before {
+  content: counter(step);
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--green-ink);
+  font-size: 14px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sheet-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- Boards: bar models, tape diagrams ---------- */
+
+.bar-model {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bar-whole {
+  border: 2px solid var(--pink);
+  border-radius: 8px;
+  padding: 6px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--pink);
+}
+
+.bar-parts,
+.tape-units,
+.bar-track {
+  display: flex;
+  gap: 3px;
+}
+
+.tape-units,
+.bar-track {
+  flex: 1;
+}
+
+.bar-part {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--green-ink);
+  background: var(--raised-edge);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-ghost {
+  flex: 1;
+}
+
+.bar-gap {
+  flex: none;
+  width: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-weight: 900;
+}
+
+.num-a-bg { background: var(--accent-blue); }
+.num-b-bg { background: var(--accent-amber); }
+.num-t-bg { background: var(--pink); }
+.num-gone-bg {
+  background: transparent;
+  border: 2px dashed var(--grey);
+  color: var(--grey);
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bar-name {
+  flex: none;
+  width: 64px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-soft);
+  text-align: right;
+}
+
+.bar-diff {
+  min-height: 40px;
+  border: 2px dashed var(--pink);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--pink);
+}
+
+.bar-caption {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.pow-ladder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pow-rung {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--accent-blue);
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.pow-step {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--green-light);
+}
+
+/* ---------- Boards: place value, rounding ---------- */
+
+.pv-chart {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.pv-head {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.pv-digit {
+  font-size: 30px;
+  font-weight: 900;
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 0;
+}
+
+.pv-value {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-head.hl,
+.pv-value.hl {
+  color: var(--pink);
+}
+
+.pv-digit.hl {
+  border-color: var(--pink);
+  box-shadow: 0 0 12px rgba(244, 114, 182, 0.45);
+}
+
+.pv-expanded {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.round-line {
+  padding: 0 18px;
+}
+
+.tick-line.mid {
+  height: 14px;
+  background: var(--accent-amber);
+}
+
+.tick-label.mid {
+  color: var(--accent-amber);
+}
+
+.vector-landing.static {
+  transition: none;
+}
+
+/* ---------- Boards: fractions ---------- */
+
+.frac-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.frac-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.frac-label {
+  flex: none;
+  width: 52px;
+  text-align: right;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text-soft);
+}
+
+.frac-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.frac-bar {
+  display: flex;
+  gap: 2px;
+  height: 30px;
+}
+
+.frac-piece {
+  flex: 1;
+  border-radius: 4px;
+  border: 1px solid var(--raised-edge);
+  background: transparent;
+}
+
+.frac-piece.fill-a { background: var(--accent-blue); border-color: var(--accent-blue); }
+.frac-piece.fill-b { background: var(--accent-amber); border-color: var(--accent-amber); }
+.frac-piece.fill-t { background: var(--pink); border-color: var(--pink); }
+
+/* ---------- Boards: rectangles and angles ---------- */
+
+.rect-fill { fill: rgba(120, 190, 32, 0.18); }
+.rect-edge { fill: none; stroke: var(--green); stroke-width: 3; }
+.rect-grid line { stroke: rgba(120, 190, 32, 0.45); stroke-width: 1; }
+
+.figure-svg text {
+  font-size: 16px;
+  font-weight: 900;
+  font-family: var(--font-family);
+}
+
+.angle-svg text {
+  font-size: 19px;
+}
+
+.svg-a { fill: var(--accent-blue); }
+.svg-b { fill: var(--accent-amber); }
+.svg-ask { fill: var(--pink); }
+.svg-total { fill: var(--text-muted); font-size: 12px !important; }
+
+.angle-rays line {
+  stroke: var(--text-soft);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.arc-a, .arc-b, .arc-ask {
+  fill: none;
+  stroke-width: 3;
+}
+
+.arc-a { stroke: var(--accent-blue); }
+.arc-b { stroke: var(--accent-amber); }
+.arc-ask { stroke: var(--pink); stroke-dasharray: 4 3; }
+.angle-vertex { fill: var(--text-soft); }
+
+/* ---------- Boards: groups and leftovers ---------- */
+
+.groups-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--well);
+}
+
+.group.more {
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.group-dots {
+  display: grid;
+  grid-template-columns: repeat(5, 12px);
+  gap: 3px;
+}
+
+.gdot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.gdot.blue { background: var(--accent-blue); }
+.gdot.amber { background: var(--accent-amber); }
+.gdot.empty { border: 1px dashed var(--grey); }
+
+.group.partial.up { border: 2px solid var(--green); }
+.group.partial.drop { opacity: 0.5; border-style: dashed; }
+.group.partial.left { border: 2px solid var(--pink); }
+
+.group-note {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-soft);
+}
+
 /* ---------- Motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   .mystery-box.wiggle,
   .mystery-box.nudge,
   .call,
+  .steps li,
+  .breathe-ball,
   .vector-landing.jump .landing-ball {
     animation: none;
+  }
+}
+
+/* ---------- Landscape tablet: the pad beside the shot ---------- */
+/* Word problems need the height, so in landscape the number pad sits to the
+   right of the shot instead of under it. Practice and the other game screens
+   stay one column. */
+
+@media (orientation: landscape) and (min-width: 960px) {
+  header,
+  .app-container {
+    max-width: 980px;
+  }
+
+  #view-lab,
+  .center-card {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .shot-card {
+    grid-template-areas: "main pad" "links pad";
+    grid-template-columns: 1fr 340px;
+    align-items: center;
+    column-gap: 28px;
+    padding: 20px 24px;
+  }
+
+  .shot-card.made {
+    grid-template-areas: "main";
+    grid-template-columns: 1fr;
+  }
+
+  .shot-links {
+    align-self: start;
   }
 }
 
