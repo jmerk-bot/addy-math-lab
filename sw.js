@@ -35,6 +35,7 @@ const APP_SHELL = [
   './js/sheets.js',
   './js/panel.js',
   './js/lines.js',
+  './js/log.js',
   './js/pwa.js',
   './js/version.js',
   './manifest.webmanifest',

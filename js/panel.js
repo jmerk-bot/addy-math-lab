@@ -1,12 +1,15 @@
 // The "Change the Game" panel, for the grown-up: the playbook and
-// training path, a shot chart and the week, and settings.
+// training path, a shot chart and the week, and settings (including the
+// journey log's backup copies).
 
-import { state, resetSeason, resetGame, LENGTHS } from './state.js';
+import { state, resetSeason, resetGame, tidyPaused, LENGTHS, backupCopy, readBackup, restoreBackup } from './state.js';
 import { OPS, OP_LABEL } from './math.js';
 import { PLAYS, PATH, LEVELS, LEVEL_NAMES, ZONES, CAMPS } from './plays.js';
 import { swishRate, unlockPlay, RECENT } from './coach.js';
 import { setSound } from './audio.js';
 import { renderGame, weekHtml } from './game.js';
+import { dayKey } from './kit.js';
+import { logEvent, logStatus } from './log.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -17,14 +20,17 @@ let tab = 'playbook';
 // confirm(): some browsers and webviews block it, which would make these
 // buttons do nothing. { action, value } while a question is showing.
 let pending = null;
+let notice = ''; // a line under the backup buttons: what just happened
 
 export function openCoach(open) {
   pending = null;
+  notice = '';
   $('coach').hidden = !open;
   if (open) renderCoach();
 }
 
 export function renderCoach() {
+  tidyPaused();
   document.querySelectorAll('.coach-tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.value === tab));
   $('coach-body').innerHTML = { playbook: playbookHtml, stats: statsHtml, settings: settingsHtml }[tab]();
 }
@@ -87,6 +93,7 @@ function playbookHtml() {
     `<button class="filter-pill ${state.ops.includes(op) ? 'active' : ''}" data-action="op" data-value="${op}">${OP_LABEL[op]}</button>`).join('');
 
   return `
+    ${pausedHtml()}
     <div class="coach-section">
       <h3>Camps</h3>
       <div class="camp-row">${camps}</div>
@@ -101,6 +108,25 @@ function playbookHtml() {
       <div class="op-row">${ops}</div>
     </div>
   `;
+}
+
+// Concepts paused from a shot ("I'm not ready for … yet"), until turned back on
+function pausedHtml() {
+  if (!state.paused.length) return '';
+  const rows = state.paused.map((x, i) => `
+    <div class="play-item">
+      <div class="play-info">
+        <span class="play-name">${x.label[0].toUpperCase()}${x.label.slice(1)}</span>
+        <span class="play-meta">${x.key === '*' ? 'The whole play' : PLAYS[x.kind].label} · paused ${showDay(x.day)}</span>
+      </div>
+      <button class="quiet-btn small" data-action="resume-concept" data-value="${i}">Turn back on</button>
+    </div>`).join('');
+  return `
+    <div class="coach-section">
+      <h3>Paused for later</h3>
+      <p class="coach-note">"I'm not ready for … yet" on a shot pauses just that part of a play. Turn it back on when it's time.</p>
+      <div class="play-list">${rows}</div>
+    </div>`;
 }
 
 // ---------- Stats tab ----------
@@ -209,7 +235,90 @@ function settingsHtml() {
       <div class="level-row four">${levels}</div>
       ${confirmHtml('level')}
     </div>
+    ${backupHtml()}
   `;
+}
+
+// ---------- Journey log and backup copies ----------
+
+// 'YYYY-MM-DD' as a short date, e.g. "Oct 9, 2026"
+const showDay = (d) => {
+  const [y, m, day] = d.split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const backupName = () => `addy-math-lab-${dayKey()}.json`;
+const backupFile = () => new File([JSON.stringify(backupCopy())], backupName(), { type: 'application/json' });
+
+function canShareFiles() {
+  try {
+    return !!navigator.canShare?.({ files: [new File(['{}'], 'copy.json', { type: 'application/json' })] });
+  } catch (e) {
+    return false;
+  }
+}
+
+function backupHtml() {
+  const { since, games, full } = logStatus();
+  const logged = `${games === 1 ? '1 game' : `${games} games`} logged`;
+  return `
+    <div class="coach-section">
+      <h3>Journey log</h3>
+      <p class="coach-note">Every game is recorded on this tablet${since ? `, starting ${showDay(since)}` : ''} · ${logged}. Save a copy now and then: it's a backup of the log, plays, levels and season.</p>
+      ${full ? '<p class="backup-notice">This tablet is out of room for the log. Save a copy so nothing is lost.</p>' : ''}
+      <div class="backup-row">
+        <button class="quiet-btn" data-action="backup-download">Download a copy</button>
+        ${canShareFiles() ? '<button class="quiet-btn" data-action="backup-share">Share a copy</button>' : ''}
+        <button class="quiet-btn" data-action="backup-restore">Restore from a copy</button>
+      </div>
+      ${notice ? `<p class="backup-notice">${notice}</p>` : ''}
+      ${confirmHtml('restore')}
+    </div>`;
+}
+
+function downloadBackup() {
+  const file = backupFile();
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  notice = `Downloaded ${file.name}.`;
+}
+
+function shareBackup() {
+  notice = '';
+  // Cancelling the share sheet rejects; nothing to do then
+  navigator.share({ files: [backupFile()], title: 'Math Lab backup' }).catch(() => {});
+}
+
+// The file picker is a hidden input in index.html (outside the panel, which redraws)
+function pickBackup() {
+  notice = '';
+  const input = $('restore-file');
+  input.value = '';
+  input.click();
+}
+
+// A file picked to restore from: ask first, or say why it can't be used
+export async function backupPicked(file) {
+  if (!file) return;
+  let text = '';
+  try {
+    text = await file.text();
+  } catch (e) {}
+  const copy = readBackup(text);
+  pending = copy ? { action: 'restore', value: copy } : null;
+  notice = copy ? '' : "That file isn't a Math Lab copy, so nothing changed.";
+  renderCoach();
+}
+
+function restore(copy) {
+  if (restoreBackup(copy)) location.reload();
+  else notice = "That copy couldn't be restored, so nothing changed.";
 }
 
 // ---------- Actions ----------
@@ -233,10 +342,25 @@ function setPlayLevel(value) {
   const i = LEVELS.indexOf(p.level) + Number(step);
   if (i < 0 || i >= LEVELS.length) return;
   Object.assign(p, { level: LEVELS[i], tier: 0, streak: 0, slump: 0 });
+  logEvent('set', { kind: id, level: p.level });
+}
+
+function resumeConcept(value) {
+  const x = state.paused[Number(value)];
+  if (!x) return;
+  if (x.key === '*' && state.progress[x.kind].unlocked) {
+    state.playbook = PATH.filter((id) => id === x.kind || state.playbook.includes(id));
+  } else if (x.kind === 'equation') {
+    state.ops = OPS.filter((op) => op === x.key || state.ops.includes(op));
+  }
+  state.paused = state.paused.filter((y) => y !== x);
+  logEvent('resume', { kind: x.kind, key: x.key });
 }
 
 function unlock(id) {
-  if (PLAYS[id] && !state.progress[id].unlocked) unlockPlay(state, id);
+  if (!PLAYS[id] || state.progress[id].unlocked) return;
+  unlockPlay(state, id);
+  logEvent('unlock', { kind: id });
 }
 
 // A camp switches on its unlocked plays (keeping at least one)
@@ -252,6 +376,7 @@ function setBaseLevel(level) {
     const p = state.progress[id];
     if (p.unlocked) Object.assign(p, { level, tier: 0, streak: 0, slump: 0 });
   }
+  logEvent('base', { level });
 }
 
 function toggleOp(op) {
@@ -276,6 +401,7 @@ function setLength(key) {
 }
 
 function clearSeason() {
+  logEvent('reset');
   resetSeason();
   resetGame();
   renderGame();
@@ -297,6 +423,15 @@ const GUARDED = {
     ask: () => 'Reset the season record? Games, points, highs and the week go back to zero. Plays and levels stay.',
     yes: () => 'Reset season',
     run: clearSeason
+  },
+  restore: {
+    ask: (copy) => {
+      const games = copy.log.events.filter((e) => e.e === 'game').length;
+      const when = new Date(copy.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      return `Replace everything on this tablet with the copy saved ${when} (${games === 1 ? '1 game' : `${games} games`} logged)? Plays, levels, the season and the log all come from the copy.`;
+    },
+    yes: () => 'Restore',
+    run: restore
   }
 };
 
@@ -304,9 +439,10 @@ const ask = (action) => (value) => { pending = { action, value }; };
 
 // Each runs, then the panel redraws
 const ACTIONS = {
-  'coach-tab': (value) => { tab = value; pending = null; },
+  'coach-tab': (value) => { tab = value; pending = null; notice = ''; },
   'play': togglePlay,
   'play-level': setPlayLevel,
+  'resume-concept': resumeConcept,
   'unlock': ask('unlock'),
   'camp': setCamp,
   'level': ask('level'),
@@ -314,6 +450,9 @@ const ACTIONS = {
   'setting': toggleSetting,
   'length': setLength,
   'reset-season': ask('reset-season'),
+  'backup-download': downloadBackup,
+  'backup-share': shareBackup,
+  'backup-restore': pickBackup,
   'confirm-yes': () => {
     const change = pending;
     pending = null;

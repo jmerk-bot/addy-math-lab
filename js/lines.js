@@ -32,6 +32,13 @@ const ASSIST = [
   'Great teamwork. Count it!'
 ];
 
+// After "I don't know this yet": no points, no fuss, a new shot
+const SKIP = {
+  tired: ['Fresh legs! New play coming in.', 'Switching it up. Next play!'],
+  hard: ["Good call. Let's run one you know.", 'No problem. Coach is drawing up a different one.'],
+  notready: (label) => [`Got it. We'll save ${label} for later.`]
+};
+
 const HEATING_UP = 'Heating up! 🔥';
 const ON_FIRE = 'ON FIRE! M V Phee!';
 
@@ -54,6 +61,11 @@ export function callMiss(last) {
 
 export function callAssist(last) {
   return pick(ASSIST, last);
+}
+
+export function callSkip(reason, label, last) {
+  const pool = reason === 'notready' ? SKIP.notready(label) : SKIP[reason];
+  return pick(pool, last) || pool[0];
 }
 
 export function finalHeadline({ points, maxPoints, newHigh }) {

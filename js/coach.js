@@ -96,6 +96,23 @@ export function recordShot(p, swish, { auto = true } = {}) {
   return 'down'; // already as easy as it goes, but still a cue for familiar shots
 }
 
+// "This one's too hard": down `steps` tiers now (crossing into the level below
+// if needed, never below Rookie). Returns the change in steps (0 or negative).
+export const TOO_HARD_STEPS = 2;
+
+export function stepDown(p, steps = TOO_HARD_STEPS) {
+  let moved = 0;
+  while (moved < steps) {
+    const i = LEVELS.indexOf(p.level);
+    if (p.tier > 0) p.tier -= 1;
+    else if (i > 0) Object.assign(p, { level: LEVELS[i - 1], tier: 2 });
+    else break;
+    moved += 1;
+  }
+  Object.assign(p, { streak: 0, slump: 0 });
+  return -moved;
+}
+
 // New plays start one level below the base level, never below Rookie
 export const startLevel = (base) => LEVELS[Math.max(0, LEVELS.indexOf(base) - 1)];
 
@@ -161,10 +178,18 @@ function comfortPlay(state, ids) {
 }
 
 // Which play the next shot comes from, at what tier, and whether it's a
-// familiar "comfort" shot. game.quarter / game.shot say where we are.
-export function chooseShot(state, game, { periods, shotsPerPeriod }) {
-  const on = PATH.filter((id) => state.progress[id]?.unlocked && state.playbook.includes(id));
-  const ids = on.length ? on : ['equation'];
+// familiar "comfort" shot. game.quarter / game.shot say where we are. Plays
+// resting for the rest of the game ("I'm tired of this kind"), and the play
+// just skipped, sit out while there's anything else to play; they come back
+// before a story shot would open a game or go past the quarter's limit.
+// exclude: plays to leave out of this call entirely.
+export function chooseShot(state, game, { periods, shotsPerPeriod, exclude = new Set() }) {
+  const on = PATH.filter((id) => state.progress[id]?.unlocked && state.playbook.includes(id) && !exclude.has(id));
+  const sitting = new Set([...(game.resting || []), game.skipped].filter(Boolean));
+  const available = on.filter((id) => !sitting.has(id));
+  const ids = available.length ? available : on.length ? on : ['equation'];
+  const steady = (list) => list.filter((id) => !PLAYS[id].reading && !(state.progress[id].fresh > 0));
+  const steadyIds = steady(ids).length || !on.length ? ids : on;
   const index = (game.quarter - 1) * shotsPerPeriod + game.shot;
   const total = periods * shotsPerPeriod;
   const left = shotsPerPeriod - game.shot;
@@ -172,7 +197,7 @@ export function chooseShot(state, game, { periods, shotsPerPeriod }) {
 
   // Open and close the game on something familiar, and settle down after a rough patch
   if (index === 0 || index === total - 1 || game.calm > 0) {
-    const kind = comfortPlay(state, ids);
+    const kind = comfortPlay(state, steadyIds);
     return { kind, tier: Math.max(0, tierOf(kind) - 1), comfort: true };
   }
 
@@ -180,8 +205,10 @@ export function chooseShot(state, game, { periods, shotsPerPeriod }) {
   const pool = ids.filter((id) => {
     const play = PLAYS[id];
     if (state.progress[id].fresh > 0) {
-      // A new play only mid-game, a couple of times, never twice in a row
-      if (index < 2 || index > total - 3 || game.freshShots >= FRESH_SHOTS_PER_GAME || last === id) return false;
+      // A new play only mid-game (both steps of a two-step play), a couple of
+      // times, never twice in a row
+      const end = total - 3 - (play.followUp ? 1 : 0);
+      if (index < 2 || index > end || game.freshShots >= FRESH_SHOTS_PER_GAME || last === id) return false;
     }
     if (play.reading && game.readingThisPeriod >= READING_PER_PERIOD) return false;
     // A two-step play needs both steps in this quarter, before the game's
@@ -192,7 +219,7 @@ export function chooseShot(state, game, { periods, shotsPerPeriod }) {
     return true;
   });
 
-  const fallback = ids.filter((id) => !PLAYS[id].reading && !(state.progress[id].fresh > 0));
+  const fallback = steady(steadyIds);
   const choices = pool.length ? pool : fallback.length ? fallback : [comfortPlay(state, ids)];
   const weights = Object.fromEntries(choices.map((id) =>
     [id, PLAYS[id].weight * (state.progress[id].fresh > 0 ? FRESH_BOOST : 1)]));

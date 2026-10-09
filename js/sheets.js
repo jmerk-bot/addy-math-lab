@@ -1,6 +1,7 @@
 // Sheets that slide over the game: Coach's board ("Go Practice This Play"), "Show me
-// how" (a worked example, one step at a time), a new play's intro, and the
-// film room after the final buzzer. Nothing here changes the score.
+// how" (a worked example, one step at a time), a new play's intro, "I don't
+// know this yet" (what to do instead), and the film room after the final
+// buzzer. Nothing here changes the score.
 
 import { state } from './state.js';
 import { fmt } from './math.js';
@@ -8,7 +9,7 @@ import { PLAYS } from './plays.js';
 
 const $ = (id) => document.getElementById(id);
 
-// { kind: 'board' | 'showme' | 'intro' | 'film', problem, steps, shown, ... }
+// { kind: 'board' | 'showme' | 'intro' | 'skip' | 'film', problem, steps, shown, ... }
 let sheet = null;
 
 export const sheetIsOpen = () => sheet !== null;
@@ -87,6 +88,29 @@ const RENDER = {
     `;
   },
 
+  // "I don't know this yet": three answers, least change first, each saying
+  // what happens next
+  skip() {
+    const { play, concept, canPause } = sheet.choices;
+    const choice = (reason, say, then) => `
+      <button class="skip-choice" data-action="skip-choose" data-value="${reason}">
+        <span class="skip-say">${say}</span>
+        <span class="skip-then">${then}</span>
+      </button>`;
+    return `
+      <div class="sheet-head"><h2>That's OK!</h2></div>
+      <p class="sheet-label">Every player is still learning some shots. Which one fits?</p>
+      <div class="skip-choices">
+        ${choice('tired', `I'm tired of ${play} for now`, 'Coach switches to other plays for the rest of this game.')}
+        ${choice('hard', 'This one is too hard', 'Coach makes the next ones a little easier.')}
+        ${canPause ? choice('notready', `I'm not ready for ${concept} yet`, 'Coach saves it for later.') : ''}
+      </div>
+      <div class="sheet-actions">
+        <button class="link-btn" data-action="sheet-close">Back to the shot</button>
+      </div>
+    `;
+  },
+
   // The film room: each shot that needed a rebound, worked through
   film() {
     const { film, index } = sheet;
@@ -129,6 +153,13 @@ export function openIntro(id, onDone) {
   const play = PLAYS[id];
   const problem = play.generate({ level: state.progress[id].level, tier: 0, ops: state.ops });
   sheet = { kind: 'intro', id, problem, steps: play.steps(problem), shown: 0, onDone };
+  render();
+}
+
+// choices: { play, concept, canPause } from skipChoices() in js/game.js
+export function openSkip(choices) {
+  if (!choices) return;
+  sheet = { kind: 'skip', choices };
   render();
 }
 

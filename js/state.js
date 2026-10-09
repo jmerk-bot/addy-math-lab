@@ -3,6 +3,8 @@
 import { OPS } from './math.js';
 import { LEVELS, PLAY_IDS, PLAYS, isValidProblem } from './plays.js';
 import { freshProgress, RECENT, SEASON_RECENT } from './coach.js';
+import { LOG_KEY, LOG_VERSION, isLog, isShotRecord, isSkipRecord, logEvents } from './log.js';
+import { APP_VERSION } from './version.js';
 
 export const SHOTS_PER_QUARTER = 5;
 
@@ -46,7 +48,12 @@ function freshGame(periods = 4) {
     film: [], // shots that needed a rebound, for the film room
     levelUps: [], // [{ kind, level }] plays that moved up this game
     unlocked: '', // a play that unlocked at the final buzzer
-    tipKind: '' // the play the halftime tip is about
+    tipKind: '', // the play the halftime tip is about
+    start: 0, // ms at tip-off
+    shotLog: [], // this game's shots so far, for the journey log (js/log.js)
+    skips: [], // "I don't know this yet" this game, for the log
+    resting: [], // plays sitting out the rest of this game ("I'm tired of this kind")
+    skipped: '' // the play just skipped, which sits out the next pick
   };
 }
 
@@ -88,7 +95,12 @@ export const state = {
   settings: { ...DEFAULT_SETTINGS },
   lab: { a: 6, b: 3, op: '+' },
   game: freshGame(),
-  season: freshSeason()
+  season: freshSeason(),
+  // Concepts paused from a shot ("I'm not ready for … yet"), until a grown-up
+  // turns them back on: [{ kind, key, label, day }]. key '*' pauses the whole
+  // play (it's switched off in the playbook); for Equations the key is an
+  // operation, switched off in Equations' operations.
+  paused: []
 };
 
 export function resetGame(periods) {
@@ -97,12 +109,6 @@ export function resetGame(periods) {
 
 export function resetSeason() {
   state.season = freshSeason();
-}
-
-// Local date as 'YYYY-MM-DD'
-export function dayKey(date = new Date()) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 // ---------- Persistence ----------
@@ -116,14 +122,30 @@ const V2_KEY = 'addy-math-lab:v2';
 const OLD_KEYS = ['addy-math-lab:v1', V2_KEY, V3_KEY]; // earlier layouts, cleared once v4 is saved
 
 let oldKeysCleared = false;
+let frozen = false; // set while restoring a copy, so nothing overwrites it before the reload
 
 const isInt = (n) => Number.isInteger(n) && n >= 0;
 const isBits = (arr) => Array.isArray(arr) && arr.every((x) => x === 0 || x === 1);
 
+function savedState() {
+  const { mode, level, playbook, progress, ops, settings, lab, game, season, paused } = state;
+  return { mode, level, playbook, progress, ops, settings, lab, game, season, paused };
+}
+
+// Drops paused concepts a grown-up has already turned back on another way (the
+// play switched on again, or the operation picked again for Equations)
+export function tidyPaused() {
+  state.paused = state.paused.filter(({ kind, key }) =>
+    (key === '*' ? !state.playbook.includes(kind) : kind === 'equation' ? !state.ops.includes(key) : true));
+}
+
+// Whether a shot of `kind` about concept `key` is paused
+export const isPaused = (kind, key) => state.paused.some((x) => x.kind === kind && (x.key === key || x.key === '*'));
+
 export function saveState() {
+  if (frozen) return;
   try {
-    const { mode, level, playbook, progress, ops, settings, lab, game, season } = state;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, level, playbook, progress, ops, settings, lab, game, season }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedState()));
     if (!oldKeysCleared) {
       OLD_KEYS.forEach((key) => localStorage.removeItem(key));
       oldKeysCleared = true;
@@ -180,6 +202,12 @@ export function loadState() {
     state.lab = { a: lab.a, b: lab.b, op: lab.op };
   }
 
+  if (Array.isArray(saved.paused)) {
+    state.paused = saved.paused.filter((x) => x && PLAY_IDS.includes(x.kind) && typeof x.key === 'string'
+      && typeof x.label === 'string' && typeof x.day === 'string');
+    tidyPaused();
+  }
+
   loadGame(saved.game);
   loadSeason(saved.season);
 }
@@ -204,6 +232,11 @@ function loadGame(g) {
     if (isInt(g[k])) game[k] = g[k];
   }
   game.status = g.status;
+  if (isInt(g.start)) game.start = g.start;
+  if (Array.isArray(g.shotLog)) game.shotLog = g.shotLog.filter(isShotRecord).slice(0, periods * SHOTS_PER_QUARTER);
+  if (Array.isArray(g.skips)) game.skips = g.skips.filter(isSkipRecord);
+  if (Array.isArray(g.resting)) game.resting = g.resting.filter((id) => PLAY_IDS.includes(id));
+  if (PLAY_IDS.includes(g.skipped)) game.skipped = g.skipped;
   game.assisted = g.assisted === true;
   game.comfort = g.comfort === true;
   for (const k of ['call', 'headline', 'unlocked', 'tipKind']) {
@@ -245,6 +278,53 @@ function loadSeason(s) {
       .slice(-60));
   }
   state.season = season;
+}
+
+// ---------- Backup copies ----------
+// "Save a copy" in Change the Game: the saved state and the journey log in one
+// file. Restoring writes them back and reloads, so the copy goes through the
+// same checks (and migrations) as any launch.
+
+export function backupCopy() {
+  return {
+    app: 'addy-math-lab',
+    type: 'backup',
+    v: 1,
+    savedAt: new Date().toISOString(),
+    version: APP_VERSION,
+    stateKey: STORAGE_KEY,
+    state: savedState(),
+    log: { v: LOG_VERSION, events: logEvents() }
+  };
+}
+
+// The copy in a file's text, or null if it isn't one
+export function readBackup(text) {
+  let copy;
+  try {
+    copy = JSON.parse(text);
+  } catch (e) {
+    return null;
+  }
+  const ok = copy && copy.app === 'addy-math-lab' && copy.type === 'backup'
+    && [STORAGE_KEY, ...OLD_KEYS].includes(copy.stateKey)
+    && copy.state && typeof copy.state === 'object' && isLog(copy.log);
+  return ok ? copy : null;
+}
+
+// Writes a copy over everything saved here. The caller reloads the page.
+// Returns false (with nothing changed) if it couldn't be written.
+export function restoreBackup(copy) {
+  try {
+    localStorage.setItem(LOG_KEY, JSON.stringify(copy.log));
+    localStorage.setItem(copy.stateKey, JSON.stringify(copy.state));
+    // A copy from an older layout loads through its migration
+    if (copy.stateKey !== STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    return false;
+  }
+  frozen = true;
+  return true;
 }
 
 // v3 had one global level and three plays (all unlocked). They carry over as

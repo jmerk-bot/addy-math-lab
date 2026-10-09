@@ -18,14 +18,15 @@ It's a Progressive Web App (PWA). Install it once on a tablet and it opens full-
 - **Plays:** each shot comes from one of thirteen plays: Equations, Big numbers, Leftovers, Fractions, Story shots, Place value, Measurement, Times as many, Round & compare, Area & perimeter, Leftover stories, Two-step plays and Angles. Story shots have a 🔊 button that reads them aloud.
 - **The training path:** a new install starts with Equations; the other plays unlock one at a time, in that order, when shots are going well (70% swishes over the last 40 shots, the newest play steady, and at least two games since the last new play). A new play starts with a worked example from Coach Cheryl at tip-off, then appears just twice, mid-game, in its first game.
 - **Difficulty moves in small steps, per play:** three swishes in a row move a play up a step; two put-backs in a row move it down a step, quietly. Every game opens and closes with a familiar shot, and after a rough patch the next shot or two are familiar too.
-- **Help is always there:** **Go Practice This Play** builds the shot in Practice, or opens a picture of it (which can also send it to Practice). **Ask Coach Cheryl** gives a hint, then a bit more, then **Show me how**, a worked example step by step; the shot is still worth 1 after that.
+- **Help is always there:** **Go Practice This Play** builds the shot in Practice, or opens a picture of it (which can also send it to Practice). **Ask Coach Cheryl** gives a hint, then a bit more, then **Show me how**, a worked example step by step; the shot is still worth 1 after that. **I don't know this yet** swaps the shot for a different one (no points lost, no miss) and asks which fits: tired of this play (it sits out the rest of the game), this one is too hard (the play gets a little easier), or not ready for it yet (just that part, like Equations' division, is paused until it's turned back on in Change the Game).
 - **Film room 🎬:** after the final buzzer, each shot that needed a rebound, worked through. Nothing there is scored.
-- **Change the Game** (top right), for the grown-up: **Playbook** (camps, the training path with each play's level, unlocking a play early, the operations Equations uses), **Stats** (a shot chart by kind of play, this week, the season) and **Settings** (full or quick game, automatic difficulty and new plays, sounds, read-aloud, and a base level for every play).
+- **Change the Game** (top right), for the grown-up: **Playbook** (anything paused from a shot, with a button to turn it back on; camps; the training path with each play's level; unlocking a play early; the operations Equations uses), **Stats** (a shot chart by kind of play, this week, the season) and **Settings** (full or quick game, automatic difficulty and new plays, sounds, read-aloud, a base level for every play, and the journey log).
+- **Journey log:** every finished game is recorded on the tablet, shot by shot and dated, starting from a note of where each play stood. In **Change the Game → Settings**, **Download a copy** (or **Share a copy**, where the tablet can share files) saves the log, plays, levels and season to one file; **Restore from a copy** puts one back. It's a backup, and the base for tracking progress over time.
 
 ## How updates reach the tablet
 
 - Pushing to `main` deploys automatically through GitHub Actions (`.github/workflows/deploy.yml`) in about a minute.
-- When the app opens, or comes back to the foreground, it checks for a newer version and reloads itself. Settings, progress on every play, the Practice numbers, a game in progress and the season record are saved and come back after the reload.
+- When the app opens, or comes back to the foreground, it checks for a newer version and reloads itself. Settings, progress on every play, the Practice numbers, a game in progress, the season record and the journey log are saved and come back after the reload.
 - The version number is in tiny text at the bottom of the screen. Use it to check which version the tablet is running.
 - Offline, the app runs from the last version it downloaded.
 
@@ -65,8 +66,9 @@ node scripts/check-plays.mjs
 | `js/panel.js` | The "Change the Game" panel: playbook, stats and shot chart, settings. |
 | `js/lab.js` | Practice: steppers, the manipulative, the number line. |
 | `js/lab-limits.js` | Practice's limits for A and B. |
-| `js/state.js` | Shared state, and save/restore via `localStorage` (with migration from older saves). |
-| `js/kit.js` | Helpers for the plays: levels, random picks, number words. |
+| `js/state.js` | Shared state, save/restore via `localStorage` (with migration from older saves), and backup copies. |
+| `js/log.js` | The journey log: a dated, shot-by-shot record of every game, under its own `localStorage` key. |
+| `js/kit.js` | Helpers for the plays: levels, random picks, number words, dates. |
 | `js/math.js` | Number helpers: operations, `compute()`, and `fmt()` for commas. |
 | `js/lines.js` | The announcer's lines for makes, misses, assists, streaks and the final headline. |
 | `js/audio.js` | Web Audio tones (an ascending pentatonic scale), the success chord, the final horn, and read-aloud. |
@@ -77,7 +79,7 @@ node scripts/check-plays.mjs
 | `img/lynx-logo.svg` | Team logo in the header (from Wikipedia; see the disclaimer). |
 | `icons/` | `icon.svg` / `icon-maskable.svg` sources plus rendered PNGs. |
 | `scripts/make-icons.sh` | Re-renders the PNG icons from the SVGs (needs Google Chrome). |
-| `scripts/check-plays.mjs` | Checks every play and simulates seasons through the coach (needs Node). |
+| `scripts/check-plays.mjs` | Checks every play, simulates seasons through the coach, and checks the journey log and backups (needs Node). |
 
 ## Making changes
 

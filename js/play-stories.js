@@ -130,6 +130,10 @@ export const stories = {
   weight: 3,
   tip: 'Find the question first, then the numbers you need.',
 
+  concept: (p) => {
+    const op = findTemplate(STORIES, p.t).op;
+    return { key: op, label: { '+': 'addition stories', '-': 'subtraction stories', '×': 'multiplication stories', '÷': 'division stories' }[op] };
+  },
   generate({ level, tier }) {
     const r = rangesFor(STORY_RANGES, level, tier);
     const big = !!r.mulA;

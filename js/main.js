@@ -5,9 +5,10 @@ import { state, loadState, saveState } from './state.js';
 import { PLAYS, PATH } from './plays.js';
 import { playChime, setSound, speak } from './audio.js';
 import { clampLab, renderLab, setLabOp, stepA, stepB } from './lab.js';
-import { tipOff, pressKey, selectBox, askCoach, nextShot, resumeHalf, renderGame } from './game.js';
-import { openBoard, openShowMe, openIntro, openFilm, sheetNext, sheetPrev, closeSheet, sheetIsOpen } from './sheets.js';
-import { openCoach, coachActions } from './panel.js';
+import { tipOff, pressKey, selectBox, askCoach, skipChoices, skipShot, nextShot, resumeHalf, renderGame } from './game.js';
+import { openBoard, openShowMe, openIntro, openSkip, openFilm, sheetNext, sheetPrev, closeSheet, sheetIsOpen } from './sheets.js';
+import { openCoach, coachActions, backupPicked } from './panel.js';
+import { loadLog, logStart } from './log.js';
 import { initPwa } from './pwa.js';
 
 const $ = (id) => document.getElementById(id);
@@ -103,6 +104,8 @@ const actions = {
   'key': (value) => pressKey(value),
   'box': (value) => selectBox(Number(value)),
   'help': () => { if (askCoach()) openShowMe(state.game.problem); },
+  'skip': () => openSkip(skipChoices()),
+  'skip-choose': (value) => { closeSheet(); skipShot(value); },
   'speak': () => readAloud(),
   'to-lab': () => lookAtShot(),
   'board-practice': () => { closeSheet(); sendShotToLab(); },
@@ -161,8 +164,13 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') armNudge();
 });
 
-// Boot
+// "Restore from a copy" in Change the Game opens this file picker
+$('restore-file').addEventListener('change', (event) => backupPicked(event.target.files?.[0]));
+
+// Boot. The journey log starts with a note of where things stand.
 loadState();
+loadLog();
+logStart(state);
 setSound(state.settings.sound);
 clampLab();
 renderLab();

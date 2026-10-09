@@ -74,6 +74,9 @@ export const placevalue = {
   weight: 3,
   tip: 'In 3,482 the 4 is worth 400, because it sits in the hundreds place.',
 
+  concept: (p) => (p.variant === 'words' ? { key: 'words', label: 'number words' }
+    : p.variant === 'expanded' || p.variant === 'missingpart' ? { key: 'expanded', label: 'expanded form' }
+    : { key: 'places', label: 'place values' }),
   generate({ level, tier }) {
     const r = rangesFor(PLACE_RANGES, level, tier);
     const variant = pickWeighted(r.mix);
@@ -191,6 +194,7 @@ export const roundcompare = {
   weight: 3,
   tip: 'To round, look one place to the right: 5 or more rounds up.',
 
+  concept: (p) => (p.variant === 'round' ? { key: 'round', label: 'rounding' } : { key: 'compare', label: 'comparing big numbers' }),
   generate({ level, tier }) {
     const r = rangesFor(ROUND_RANGES, level, tier);
     if (pickWeighted(r.mix) === 'round') {

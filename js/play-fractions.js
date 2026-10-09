@@ -103,6 +103,12 @@ function answerOf(p) {
 
 const t = (n, d) => `${n}/${d}`;
 
+// For "I'm not ready for … yet"
+const FRACTION_CONCEPTS = {
+  equiv: 'equivalent fractions', compare: 'comparing fractions', times: 'multiplying fractions',
+  add: 'adding fractions', sub: 'subtracting fractions'
+};
+
 export const fractions = {
   label: 'Fractions',
   blurb: 'Pieces of a whole: match them, compare them, add them up.',
@@ -111,6 +117,7 @@ export const fractions = {
   weight: 3,
   tip: 'The bottom number says how many equal pieces make one whole.',
 
+  concept: (p) => ({ key: p.variant, label: FRACTION_CONCEPTS[p.variant] }),
   generate({ level, tier }) {
     const r = rangesFor(FRACTION_RANGES, level, tier);
     const variant = pickWeighted(r.variants);

@@ -58,6 +58,10 @@ export const measure = {
   weight: 3,
   tip: 'Bigger unit to smaller unit: you need more of them, so multiply.',
 
+  concept: (p) => {
+    const unit = unitById(p.u);
+    return { key: p.u, label: `${unit.many} and ${unit.small}` };
+  },
   generate({ level, tier }) {
     const r = rangesFor(MEASURE_RANGES, level, tier);
     const facts = COURT_FACTS.filter((f) => LEVEL_ORDER.indexOf(f.from) <= LEVEL_ORDER.indexOf(r.level));
@@ -145,6 +149,7 @@ export const area = {
   weight: 2,
   tip: 'Area: rows × columns. Perimeter: add all four sides.',
 
+  concept: (p) => (p.variant === 'area' || p.variant === 'sidearea' ? { key: 'area', label: 'area' } : { key: 'perimeter', label: 'perimeter' }),
   generate({ level, tier }) {
     const r = rangesFor(AREA_RANGES, level, tier);
     const variant = pickWeighted(r.mix);

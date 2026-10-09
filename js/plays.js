@@ -16,6 +16,9 @@
 //   toLab?(p) → { op, a, b } to build in Practice (or null)
 //   followUp?(p) → the linked next shot (two-step plays); stepLabel?(p)
 //   speech?(p) → what read-aloud says, when it isn't text(p)
+//   concept?(p) → { key, label }: the part of the play a shot belongs to, for
+//     "I'm not ready for <label> yet" (e.g. Equations' division). Without it,
+//     the concept is the whole play.
 //   isValid(p)
 //
 // Generators never touch the DOM, so scripts/check-plays.mjs can run them in Node.
@@ -35,6 +38,11 @@ export const PLAYS = {
 };
 export const PLAY_IDS = Object.keys(PLAYS);
 export const PATH = PLAY_IDS;
+
+// What a shot practices, as { key, label }; key '*' means the whole play
+export function conceptOf(p) {
+  return PLAYS[p.kind].concept?.(p) || { key: '*', label: PLAYS[p.kind].label };
+}
 
 export const isValidProblem = (p) =>
   !!p && typeof p === 'object' && PLAY_IDS.includes(p.kind) && PLAYS[p.kind].isValid(p);

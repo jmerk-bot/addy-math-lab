@@ -10,6 +10,12 @@ export const pickFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 export const chance = (p) => Math.random() < p;
 export const isInt = (n) => Number.isInteger(n) && n >= 0;
 
+// Local date as 'YYYY-MM-DD'
+export function dayKey(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 // A multiple of `step` in [min, max], or null when there isn't one
 export function randStep(min, max, step = 1) {
   const lo = Math.ceil(min / step);

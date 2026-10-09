@@ -1859,6 +1859,20 @@ header {
   font-weight: 900;
 }
 
+/* Journey log: backup copies */
+.backup-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.backup-notice {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
 /* Settings: a switch per row */
 .setting-row {
   display: flex;
@@ -2224,6 +2238,42 @@ header {
   justify-content: flex-end;
   align-items: center;
   gap: 10px;
+}
+
+/* "I don't know this yet": three answers, each saying what happens next */
+.skip-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skip-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--raised-edge);
+  background: var(--raised);
+  text-align: left;
+}
+
+.skip-choice:active {
+  border-color: var(--green);
+}
+
+.skip-say {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.skip-then {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 /* ---------- Boards: bar models, tape diagrams ---------- */

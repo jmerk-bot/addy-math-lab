@@ -2,14 +2,17 @@
 // js/coach.js picks each shot's play and moves the difficulty; js/plays.js
 // draws and checks the shot. A swish (right on the first try) is 3 points, a
 // make after a miss is 2, a make after "Show me how" is 1, and a miss is an
-// offensive rebound: same shot, keep the ball.
+// offensive rebound: same shot, keep the ball. "I don't know this yet" swaps
+// the shot for a different one, with no points and no miss.
 
-import { state, resetGame, SHOTS_PER_QUARTER, LENGTHS, dayKey } from './state.js';
+import { state, resetGame, isPaused, SHOTS_PER_QUARTER, LENGTHS } from './state.js';
+import { dayKey } from './kit.js';
 import { fmt } from './math.js';
-import { PLAYS, PATH, LEVEL_NAMES } from './plays.js';
-import { chooseShot, recordShot, afterGame, SEASON_RECENT } from './coach.js';
+import { PLAYS, PATH, LEVEL_NAMES, conceptOf } from './plays.js';
+import { chooseShot, recordShot, stepDown, afterGame, SEASON_RECENT } from './coach.js';
 import { playChime, playSuccessChord, playBuzzer, canSpeak, stopSpeaking } from './audio.js';
-import { callMake, callMiss, callAssist, finalHeadline } from './lines.js';
+import { callMake, callMiss, callAssist, callSkip, finalHeadline } from './lines.js';
+import { shotRecord, logGame, SKIP_REASONS } from './log.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -23,6 +26,36 @@ export const maxPoints = (game) => game.periods * SHOTS_PER_QUARTER * 3;
 const inputOf = (p) => PLAYS[p.kind].input?.(p) || 'keypad';
 const show = (x) => (typeof x === 'number' || /^\d+$/.test(x) ? fmt(Number(x)) : x);
 
+// A shot of `kind` that isn't about a paused concept, or null if a few dozen
+// tries all were
+function drawShot(kind, tier) {
+  const play = PLAYS[kind];
+  for (let tries = 0; tries < 40; tries++) {
+    const p = play.generate({ level: state.progress[kind].level, tier, ops: state.ops });
+    if (!isPaused(kind, conceptOf(p).key)) return p;
+  }
+  return null;
+}
+
+// The coach's call, with a shot drawn for it. A play with nothing left to
+// shoot but paused concepts drops out of the call and the coach calls again
+// (so the usual rules still pick among what's left). Only if nothing at all
+// is left does a paused concept come up.
+function callShot(game) {
+  const blank = new Set();
+  const opts = { periods: game.periods, shotsPerPeriod: SHOTS_PER_QUARTER, exclude: blank };
+  let first = null;
+  for (let tries = 0; tries <= PATH.length; tries++) {
+    const pick = chooseShot(state, game, opts);
+    first = first || pick;
+    const problem = drawShot(pick.kind, pick.tier);
+    if (problem) return { ...pick, problem };
+    blank.add(pick.kind);
+  }
+  const { level } = state.progress[first.kind];
+  return { ...first, problem: PLAYS[first.kind].generate({ level, tier: first.tier, ops: state.ops }) };
+}
+
 // The next shot: a two-step play's second step, or whatever the coach calls
 function newProblem() {
   const game = state.game;
@@ -34,11 +67,12 @@ function newProblem() {
     kind = prev.kind;
     game.problem = follow;
   } else {
-    const pick = chooseShot(state, game, { periods: game.periods, shotsPerPeriod: SHOTS_PER_QUARTER });
+    const pick = callShot(game);
     kind = pick.kind;
+    game.problem = pick.problem;
     game.comfort = pick.comfort;
+    game.skipped = '';
     if (pick.comfort && game.calm > 0) game.calm -= 1;
-    game.problem = PLAYS[kind].generate({ level: state.progress[kind].level, tier: pick.tier, ops: state.ops });
   }
   // Both steps of a two-step play count toward a new play's shots
   if (state.progress[kind].fresh > 0) game.freshShots += 1;
@@ -60,6 +94,7 @@ function newProblem() {
 export function tipOff() {
   resetGame(LENGTHS[state.settings.length].periods);
   state.game.status = 'shot';
+  state.game.start = Date.now();
   newProblem();
   renderGame();
 }
@@ -129,6 +164,85 @@ export function askCoach() {
   return true;
 }
 
+// ---------- "I don't know this yet" ----------
+// Three answers, from least to most change:
+//   tired     this play sits out the rest of the game; levels stay put
+//   hard      the play steps down a couple of tiers (when difficulty adjusts
+//             on its own), and the next shots are familiar ones
+//   notready  the concept (e.g. Equations' division) is paused until a
+//             grown-up turns it back on in Change the Game
+// Either way the shot is swapped for a different one: no points, no miss,
+// and the streak carries on. The skip goes in the journey log.
+
+// Pausing must leave something familiar to play (a settled play that isn't a
+// story, with a shot that isn't paused), so games can still open and close on
+// one and keep to two stories a quarter. Equations keeps at least one operation.
+function canPause(p) {
+  const { key } = conceptOf(p);
+  if (p.kind === 'equation' && !(state.ops.length > 1 && state.ops.includes(key))) return false;
+  const paused = [...state.paused, { kind: p.kind, key }];
+  const ops = p.kind === 'equation' ? state.ops.filter((op) => op !== key) : state.ops;
+  const playbook = key === '*' ? state.playbook.filter((id) => id !== p.kind) : state.playbook;
+  return playbook.some((id) => {
+    const prog = state.progress[id];
+    if (!prog.unlocked || PLAYS[id].reading || prog.fresh > 0) return false;
+    for (let tries = 0; tries < 40; tries++) {
+      const c = conceptOf(PLAYS[id].generate({ level: prog.level, tier: prog.tier, ops })).key;
+      if (!paused.some((x) => x.kind === id && (x.key === c || x.key === '*'))) return true;
+    }
+    return false;
+  });
+}
+
+// What the "I don't know this yet" sheet offers for the shot on screen
+export function skipChoices() {
+  const p = state.game.problem;
+  if (state.game.status !== 'shot' || !p) return null;
+  return { play: PLAYS[p.kind].label, concept: conceptOf(p).label, canPause: canPause(p) };
+}
+
+function pauseConcept(kind, { key, label }) {
+  if (key === '*') state.playbook = state.playbook.filter((id) => id !== kind);
+  else if (kind === 'equation') state.ops = state.ops.filter((op) => op !== key);
+  if (!state.paused.some((x) => x.kind === kind && x.key === key)) {
+    state.paused = [...state.paused, { kind, key, label, day: dayKey() }];
+  }
+}
+
+export function skipShot(reason) {
+  const game = state.game;
+  const p = game.problem;
+  if (game.status !== 'shot' || !p || !SKIP_REASONS.includes(reason)) return;
+  if (reason === 'notready' && !canPause(p)) return;
+  const kind = p.kind;
+  const prog = state.progress[kind];
+  const concept = conceptOf(p);
+  const record = [game.shotLog.length, kind, prog.level, prog.tier, reason];
+  let change = 0;
+  if (reason === 'tired' && !game.resting.includes(kind)) game.resting = [...game.resting, kind];
+  if (reason === 'hard') {
+    if (state.settings.autoLevel) change = stepDown(prog);
+    game.calm = Math.max(game.calm, 2);
+  }
+  if (reason === 'notready') {
+    pauseConcept(kind, concept);
+    game.calm = Math.max(game.calm, 1);
+  }
+  game.skips.push([...record, change, concept.key]);
+  game.skipped = kind;
+  // A skipped shot wasn't played: it doesn't count toward variety, or as a
+  // new play's first outing (it still counts against the quarter's stories)
+  game.lastKinds = game.lastKinds.slice(0, -1);
+  game.used[kind] -= 1;
+  if (!game.used[kind]) delete game.used[kind];
+  const last = game.call;
+  game.problem = null; // so a two-step play's second step doesn't follow
+  newProblem();
+  game.call = callSkip(reason, concept.label, last);
+  playChime(4);
+  renderGame();
+}
+
 // ✓ moves on to the next empty box, and shoots once every box is filled
 function solve() {
   const game = state.game;
@@ -182,11 +296,14 @@ function submitAnswer() {
   }
 }
 
-// Progress on the play, the season's recent shots, the film room, and a couple
-// of familiar shots after a rough patch
+// Progress on the play, the season's recent shots, the film room, a couple
+// of familiar shots after a rough patch, and the shot for the journey log
 function noteShot(kind, swish) {
   const game = state.game;
-  const change = recordShot(state.progress[kind], swish, { auto: state.settings.autoLevel });
+  const p = state.progress[kind];
+  const before = { level: p.level, tier: p.tier };
+  const change = recordShot(p, swish, { auto: state.settings.autoLevel });
+  game.shotLog.push(shotRecord(kind, before, p, game));
   if (change === 'levelUp') game.levelUps.push({ kind, level: state.progress[kind].level });
   if (change === 'down' || change === 'levelDown') game.calm = Math.max(game.calm, 2);
   if (game.misses >= 2 || game.assisted) game.calm = Math.max(game.calm, 1);
@@ -246,6 +363,7 @@ function finishGame() {
   season.days = Object.fromEntries(Object.entries(season.days).sort().slice(-60));
 
   game.unlocked = afterGame(state, game) || '';
+  logGame(game, season.games);
   game.headline = finalHeadline({ points: game.points, maxPoints: maxPoints(game), newHigh });
   playBuzzer();
   renderGame();

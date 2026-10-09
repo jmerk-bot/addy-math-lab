@@ -211,6 +211,7 @@ export const equation = {
   family: 'paint',
   weight: 4,
   tip: 'Stuck on a fact? Start from one you know: 7 × 8 is 7 × 7, plus 7.',
+  concept: (p) => ({ key: p.op, label: { '+': 'addition', '-': 'subtraction', '×': 'multiplication', '÷': 'division' }[p.op] }),
   generate({ level, tier, ops }) {
     const ranges = rangesFor(EQUATION_RANGES, level, tier);
     const op = pickFrom(ops?.length ? ops : ['+']);
@@ -298,6 +299,7 @@ export const bignumbers = {
   family: 'leftwing',
   weight: 3,
   tip: 'Line up the places: ones under ones, tens under tens.',
+  concept: (p) => ({ key: p.op, label: { '+': 'adding big numbers', '-': 'subtracting big numbers', '×': 'multiplying big numbers' }[p.op] }),
   generate({ level, tier }) {
     const op = pickWeighted({ '+': 35, '-': 35, '×': 30 });
     const ranges = rangesFor(BIG_RANGES, level, tier)[op];
