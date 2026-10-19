@@ -230,7 +230,7 @@ export const fractions = {
   },
 
   isValid(p) {
-    const ints = (...keys) => keys.every((k) => isInt(p[k]) && p[k] >= 1);
+    const ints = (...keys) => keys.every((k) => isInt(p[k]) && p[k] >= 1 && p[k] <= 100);
     if (p.variant === 'equiv') return ints('n1', 'd1', 'n2', 'd2') && p.n1 * p.d2 === p.n2 * p.d1 && ['n2', 'd2'].includes(p.missing);
     if (p.variant === 'compare') return ints('n1', 'd1', 'n2', 'd2');
     if (p.variant === 'times') return ints('k', 'n', 'd');

@@ -8,10 +8,12 @@ import { PLAYS, PATH, LEVELS, LEVEL_NAMES, ZONES, CAMPS } from './plays.js';
 import { swishRate, unlockPlay, RECENT } from './coach.js';
 import { setSound } from './audio.js';
 import { renderGame, weekHtml } from './game.js';
-import { dayKey } from './kit.js';
+import { dayKey, escHtml } from './kit.js';
 import { logEvent, logStatus } from './log.js';
+import { cloudStatus, onCloudStatus, setCloudToken, clearCloudToken, syncWithCloud } from './cloud.js';
 
 const $ = (id) => document.getElementById(id);
+const TABS = ['playbook', 'stats', 'settings'];
 
 let tab = 'playbook';
 
@@ -27,12 +29,14 @@ export function openCoach(open) {
   notice = '';
   $('coach').hidden = !open;
   if (open) renderCoach();
+  else renderGame();
 }
 
 export function renderCoach() {
   tidyPaused();
   document.querySelectorAll('.coach-tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.value === tab));
-  $('coach-body').innerHTML = { playbook: playbookHtml, stats: statsHtml, settings: settingsHtml }[tab]();
+  $('coach-body').innerHTML = ({ playbook: playbookHtml, stats: statsHtml, settings: settingsHtml }[tab] || playbookHtml)();
+  if (tab === 'settings') renderCloudStatus();
 }
 
 const pct = (rate) => (rate === null ? '—' : `${Math.round(rate * 100)}%`);
@@ -113,14 +117,17 @@ function playbookHtml() {
 // Concepts paused from a shot ("I'm not ready for … yet"), until turned back on
 function pausedHtml() {
   if (!state.paused.length) return '';
-  const rows = state.paused.map((x, i) => `
+  const rows = state.paused.map((x, i) => {
+    const title = escHtml(`${x.label[0].toUpperCase()}${x.label.slice(1)}`);
+    return `
     <div class="play-item">
       <div class="play-info">
-        <span class="play-name">${x.label[0].toUpperCase()}${x.label.slice(1)}</span>
+        <span class="play-name">${title}</span>
         <span class="play-meta">${x.key === '*' ? 'The whole play' : PLAYS[x.kind].label} · paused ${showDay(x.day)}</span>
       </div>
       <button class="quiet-btn small" data-action="resume-concept" data-value="${i}">Turn back on</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `
     <div class="coach-section">
       <h3>Paused for later</h3>
@@ -235,9 +242,79 @@ function settingsHtml() {
       <div class="level-row four">${levels}</div>
       ${confirmHtml('level')}
     </div>
+    ${cloudHtml()}
     ${backupHtml()}
   `;
 }
+
+// ---------- Cloud backup (GitHub Gist) ----------
+
+function cloudHtml() {
+  return `
+    <div class="coach-section">
+      <h3>Cloud backup</h3>
+      <p class="coach-note">Saves progress to a private GitHub Gist every active minute and restores it automatically if this tablet is behind. Enter a GitHub token with <code>gist</code> access.</p>
+      <div class="cloud-controls">
+        <input id="cloud-token" class="cloud-input" type="password" placeholder="GitHub token (ghp_… or github_pat_…)" autocomplete="off" spellcheck="false" aria-label="GitHub token with gist access">
+        <div class="cloud-actions">
+          <button class="level-btn cloud-btn" data-action="cloud-save"><span class="level-name">Save &amp; Sync</span></button>
+          <button id="cloud-clear" class="level-btn cloud-btn cloud-clear" data-action="cloud-clear" hidden><span class="level-name">Disconnect</span></button>
+        </div>
+        <p id="cloud-status" class="cloud-status"></p>
+      </div>
+    </div>`;
+}
+
+export function renderCloudStatus() {
+  const info = cloudStatus();
+  const input = $('cloud-token');
+  const clearBtn = $('cloud-clear');
+  const statusEl = $('cloud-status');
+  if (!input || !clearBtn || !statusEl) return;
+
+  input.placeholder = info.connected
+    ? 'Token saved (paste a new token to replace)'
+    : 'GitHub token (ghp_… or github_pat_…)';
+  clearBtn.hidden = !info.connected;
+
+  statusEl.className = `cloud-status ${info.state}`;
+  if (!info.connected) {
+    statusEl.textContent = 'Not connected — progress is saved on this tablet only.';
+    return;
+  }
+  const time = info.lastSyncAt ? new Date(info.lastSyncAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const gistTag = info.gistId ? ` · Gist ${info.gistId.slice(0, 7)}` : '';
+  if (info.state === 'syncing' || info.state === 'error') {
+    statusEl.textContent = info.message;
+  } else {
+    statusEl.textContent = `Connected${time ? ` · Last synced ${time}` : ''}${gistTag}`;
+  }
+}
+
+export function saveCloudSettings() {
+  const input = $('cloud-token');
+  const val = input?.value.trim() || '';
+  if (val) {
+    input.value = '';
+    setCloudToken(val);
+  } else if (cloudStatus().connected) {
+    syncWithCloud({ restoreIfAhead: true });
+  } else {
+    input?.focus();
+  }
+  renderCloudStatus();
+}
+
+export function clearCloudSettings() {
+  const input = $('cloud-token');
+  if (input) input.value = '';
+  clearCloudToken();
+  renderCloudStatus();
+}
+
+onCloudStatus(() => {
+  if (!$('coach').hidden && tab === 'settings') renderCloudStatus();
+});
 
 // ---------- Journey log and backup copies ----------
 
@@ -271,7 +348,7 @@ function backupHtml() {
         ${canShareFiles() ? '<button class="quiet-btn" data-action="backup-share">Share a copy</button>' : ''}
         <button class="quiet-btn" data-action="backup-restore">Restore from a copy</button>
       </div>
-      ${notice ? `<p class="backup-notice">${notice}</p>` : ''}
+      ${notice ? `<p class="backup-notice">${escHtml(notice)}</p>` : ''}
       ${confirmHtml('restore')}
     </div>`;
 }
@@ -333,9 +410,11 @@ function togglePlay(id) {
   } else {
     state.playbook = PATH.filter((x) => x === id || book.includes(x));
   }
+  renderGame();
 }
 
 function setPlayLevel(value) {
+  if (typeof value !== 'string') return;
   const [id, step] = value.split(':');
   const p = state.progress[id];
   if (!p) return;
@@ -355,18 +434,22 @@ function resumeConcept(value) {
   }
   state.paused = state.paused.filter((y) => y !== x);
   logEvent('resume', { kind: x.kind, key: x.key });
+  renderGame();
 }
 
 function unlock(id) {
   if (!PLAYS[id] || state.progress[id].unlocked) return;
   unlockPlay(state, id);
   logEvent('unlock', { kind: id });
+  renderGame();
 }
 
 // A camp switches on its unlocked plays (keeping at least one)
 function setCamp(key) {
+  if (!CAMPS[key]) return;
   const wanted = CAMPS[key].plays.filter((id) => state.progress[id]?.unlocked);
   if (wanted.length) state.playbook = PATH.filter((id) => wanted.includes(id));
+  renderGame();
 }
 
 function setBaseLevel(level) {
@@ -377,14 +460,16 @@ function setBaseLevel(level) {
     if (p.unlocked) Object.assign(p, { level, tier: 0, streak: 0, slump: 0 });
   }
   logEvent('base', { level });
+  renderGame();
 }
 
 function toggleOp(op) {
+  if (!OPS.includes(op)) return;
   const ops = state.ops;
   if (ops.includes(op)) {
     if (ops.length > 1) state.ops = ops.filter((x) => x !== op);
   } else {
-    state.ops = [...ops, op];
+    state.ops = OPS.filter((x) => x === op || ops.includes(x));
   }
 }
 
@@ -426,8 +511,11 @@ const GUARDED = {
   },
   restore: {
     ask: (copy) => {
-      const games = copy.log.events.filter((e) => e.e === 'game').length;
-      const when = new Date(copy.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const games = copy.log.events.filter((e) => e && e.e === 'game').length;
+      const parsed = new Date(copy.savedAt);
+      const when = Number.isNaN(parsed.getTime())
+        ? 'recently'
+        : parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
       return `Replace everything on this tablet with the copy saved ${when} (${games === 1 ? '1 game' : `${games} games`} logged)? Plays, levels, the season and the log all come from the copy.`;
     },
     yes: () => 'Restore',
@@ -439,7 +527,7 @@ const ask = (action) => (value) => { pending = { action, value }; };
 
 // Each runs, then the panel redraws
 const ACTIONS = {
-  'coach-tab': (value) => { tab = value; pending = null; notice = ''; },
+  'coach-tab': (value) => { if (!TABS.includes(value)) return; tab = value; pending = null; notice = ''; },
   'play': togglePlay,
   'play-level': setPlayLevel,
   'resume-concept': resumeConcept,
@@ -450,6 +538,8 @@ const ACTIONS = {
   'setting': toggleSetting,
   'length': setLength,
   'reset-season': ask('reset-season'),
+  'cloud-save': saveCloudSettings,
+  'cloud-clear': clearCloudSettings,
   'backup-download': downloadBackup,
   'backup-share': shareBackup,
   'backup-restore': pickBackup,
@@ -462,4 +552,7 @@ const ACTIONS = {
 };
 
 export const coachActions = Object.fromEntries(Object.entries(ACTIONS).map(([name, run]) =>
-  [name, (value) => { run(value); renderCoach(); }]));
+  [name, (value) => {
+    run(value);
+    if (name !== 'cloud-save' && name !== 'cloud-clear') renderCoach();
+  }]));

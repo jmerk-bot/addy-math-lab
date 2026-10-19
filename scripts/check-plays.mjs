@@ -632,8 +632,19 @@ checkLog('log with changes by hand', { games: 2, shotsPerGame: 4 * SPQ });
   const copy = S.readBackup(JSON.stringify(S.backupCopy()));
   if (!copy) fail(where, 'a fresh copy does not read back');
   const good = S.backupCopy();
-  for (const junk of ['', 'not json', '{}', JSON.stringify({ ...good, app: 'felix-math-lab' }), JSON.stringify({ ...good, stateKey: 'somewhere-else:v1' }), JSON.stringify({ ...good, log: null })]) {
+  for (const junk of [
+    '',
+    'not json',
+    '{}',
+    JSON.stringify({ ...good, app: 'felix-math-lab' }),
+    JSON.stringify({ ...good, stateKey: 'somewhere-else:v1' }),
+    JSON.stringify({ ...good, log: null }),
+    JSON.stringify({ ...good, log: { v: 1, events: [null] } })
+  ]) {
     if (S.readBackup(junk)) fail(where, `accepted ${junk.slice(0, 50)}`);
+  }
+  if (isValidProblem({ kind: 'equation', op: '+', a: 1000000, b: 1, result: 1000001, missing: 'result' })) {
+    fail(where, 'accepted unbounded equation numbers');
   }
   const games = S.state.season.games;
   const events = L.logEvents().length;
@@ -651,13 +662,19 @@ checkLog('log with changes by hand', { games: 2, shotsPerGame: 4 * SPQ });
   if (store.has('addy-math-lab:v4')) fail(where, 'the newer save was left in the way');
   S.loadState();
   if (S.state.level !== 'allstar' || S.state.season.games !== 5) fail(where, 'an old copy did not migrate', { level: S.state.level, games: S.state.season.games });
+
+  // Cloud state serialization and progress comparison
+  const Cloud = await import('../js/cloud.js');
+  const snapshot = S.serializeState();
+  if (!Cloud.isCloudAhead({ updatedAt: 0 }, snapshot)) fail(where, 'cloud snapshot should be ahead of fresh local state');
+  if (Cloud.isCloudAhead(snapshot, { updatedAt: 0 })) fail(where, 'fresh cloud state should not be ahead of populated local state');
 }
 console.log('Journey log: replays exactly, keeps a game in progress, logs changes by hand, and round-trips through a backup.');
 
 // The Change the Game panel's actions share one namespace with the game's
 // (js/main.js spreads them in), so a repeated name would quietly lose one
 {
-  const { readFileSync } = await import('node:fs');
+  const { readFileSync, existsSync } = await import('node:fs');
   const source = (file) => readFileSync(new URL(`../js/${file}`, import.meta.url), 'utf8');
   const names = (src, start) => [...src.slice(src.indexOf(start)).split('\n};')[0].matchAll(/^ {2}'([a-z-]+)':/gm)].map((m) => m[1]);
   const game = names(source('main.js'), 'const actions = {');
@@ -665,6 +682,32 @@ console.log('Journey log: replays exactly, keeps a game in progress, logs change
   if (game.length < 10 || panel.length < 10) fail('actions', `found ${game.length} game and ${panel.length} panel actions`);
   const both = game.filter((name) => panel.includes(name));
   if (both.length) fail('actions', `used by both the game and the panel: ${both}`);
+
+  // Opponent teams: every team logo exists on disk and is listed in sw.js APP_SHELL,
+  // and Addy can either choose a specific opponent or randomize it before tip-off.
+  const { TEAMS, TEAM_IDS } = await import('../js/teams.js');
+  const swSource = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  for (const id of TEAM_IDS) {
+    const team = TEAMS[id];
+    const logoUrl = new URL(`../${team.logo}`, import.meta.url);
+    if (!existsSync(logoUrl)) fail('teams', `missing logo file ${team.logo}`);
+    if (!swSource.includes(`./${team.logo}`)) fail('teams', `${team.logo} missing from sw.js APP_SHELL`);
+  }
+  G.newGame();
+  G.pickOpponent('fever');
+  if (S.state.game.opponent !== 'fever') fail('teams', 'pickOpponent did not set fever');
+  G.tipOff();
+  if (S.state.game.opponent !== 'fever') fail('teams', 'tipOff did not preserve chosen opponent');
+  G.newGame();
+  const beforeRandom = S.state.game.opponent;
+  G.randomOpponent();
+  if (S.state.game.opponent === beforeRandom) fail('teams', 'randomOpponent kept the same team');
+
+  // Highlights & feedback lines include Olivia Miles ("Liv") and Napheesa Collier ("Phe")
+  const linesSource = source('lines.js');
+  for (const needle of ['Olivia Miles', 'Liv', 'Napheesa Collier', 'Phe']) {
+    if (!linesSource.includes(needle)) fail('lines', `missing ${needle} in js/lines.js`);
+  }
 }
 
 if (failures) {

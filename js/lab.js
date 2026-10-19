@@ -2,7 +2,7 @@
 // js/visuals.js) and the number line.
 
 import { state } from './state.js';
-import { compute, fmt, OP_LABEL } from './math.js';
+import { compute, fmt, OPS, OP_LABEL } from './math.js';
 import { playChime } from './audio.js';
 import { limits } from './lab-limits.js';
 import { manipulativeHtml } from './visuals.js';
@@ -22,6 +22,7 @@ export function clampLab() {
 }
 
 export function setLabOp(op) {
+  if (!OPS.includes(op)) return;
   const lab = state.lab;
   lab.op = op;
   if (op === '×') {

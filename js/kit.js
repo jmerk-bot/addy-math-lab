@@ -9,6 +9,10 @@ export const randInt = (min, max) => min + Math.floor(Math.random() * (max - min
 export const pickFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 export const chance = (p) => Math.random() < p;
 export const isInt = (n) => Number.isInteger(n) && n >= 0;
+export const isDay = (d) => typeof d === 'string' && /^\d{4}-\d\d-\d\d$/.test(d);
+export const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
 
 // Local date as 'YYYY-MM-DD'
 export function dayKey(date = new Date()) {

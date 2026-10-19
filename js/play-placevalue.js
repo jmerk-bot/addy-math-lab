@@ -262,7 +262,11 @@ export const roundcompare = {
     ? roundLineHtml(p.n, p.place, { solved })
     : compareChartHtml(p.x, p.y)),
   isValid(p) {
-    if (p.variant === 'round') return isInt(p.n) && [10, 100, 1000, 10000].includes(p.place) && p.n > p.place / 2 && p.n % p.place !== 0;
-    return p.variant === 'compare' && isInt(p.x) && isInt(p.y) && p.x >= 10 && p.y >= 10 && (p.x !== p.y || p.expanded === true);
+    if (p.variant === 'round') {
+      return isInt(p.n) && p.n <= 99999 && [10, 100, 1000, 10000].includes(p.place)
+        && p.n > p.place / 2 && p.n % p.place !== 0 && roundTo(p.n, p.place) <= 99999;
+    }
+    return p.variant === 'compare' && isInt(p.x) && isInt(p.y)
+      && p.x >= 10 && p.x <= 99999 && p.y >= 10 && p.y <= 99999 && (p.x !== p.y || p.expanded === true);
   }
 };

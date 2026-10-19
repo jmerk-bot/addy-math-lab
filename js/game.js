@@ -6,13 +6,14 @@
 // the shot for a different one, with no points and no miss.
 
 import { state, resetGame, isPaused, SHOTS_PER_QUARTER, LENGTHS } from './state.js';
-import { dayKey } from './kit.js';
+import { dayKey, escHtml } from './kit.js';
 import { fmt } from './math.js';
 import { PLAYS, PATH, LEVEL_NAMES, conceptOf } from './plays.js';
 import { chooseShot, recordShot, stepDown, afterGame, SEASON_RECENT } from './coach.js';
 import { playChime, playSuccessChord, playBuzzer, canSpeak, stopSpeaking } from './audio.js';
 import { callMake, callMiss, callAssist, callSkip, finalHeadline } from './lines.js';
 import { shotRecord, logGame, SKIP_REASONS } from './log.js';
+import { TEAMS, TEAM_IDS, getTeam, pickRandomTeam } from './teams.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -91,8 +92,31 @@ function newProblem() {
   stopSpeaking();
 }
 
+export function pickOpponent(id) {
+  if (state.game.status !== 'pregame' || !TEAM_IDS.includes(id)) return;
+  state.game.opponent = id;
+  playChime(4);
+  renderGame();
+}
+
+export function randomOpponent() {
+  if (state.game.status !== 'pregame') return;
+  state.game.opponent = pickRandomTeam(state.game.opponent);
+  playChime(6);
+  renderGame();
+}
+
+export function newGame() {
+  resetGame(LENGTHS[state.settings.length].periods, pickRandomTeam(state.game.opponent));
+  playChime(3);
+  renderGame();
+}
+
 export function tipOff() {
-  resetGame(LENGTHS[state.settings.length].periods);
+  const opp = state.game.status === 'pregame' && TEAM_IDS.includes(state.game.opponent)
+    ? state.game.opponent
+    : pickRandomTeam(state.game.opponent);
+  resetGame(LENGTHS[state.settings.length].periods, opp);
   state.game.status = 'shot';
   state.game.start = Date.now();
   newProblem();
@@ -364,20 +388,29 @@ function finishGame() {
 
   game.unlocked = afterGame(state, game) || '';
   logGame(game, season.games);
-  game.headline = finalHeadline({ points: game.points, maxPoints: maxPoints(game), newHigh });
+  const opp = getTeam(game.opponent);
+  game.headline = finalHeadline({ points: game.points, maxPoints: maxPoints(game), newHigh, opponent: opp.name });
   playBuzzer();
   renderGame();
 }
 
 // ---------- Rendering ----------
 
+function matchupPillHtml(opp) {
+  return `<img class="matchup-pill-logo" src="img/lynx-logo.svg" alt=""><span>Minnesota Lynx vs. ${escHtml(opp.full)}</span><img class="matchup-pill-logo" src="${opp.logo}" alt="">`;
+}
+
 export function renderGame() {
   const { game } = state;
   const { status } = game;
+  const opp = getTeam(game.opponent);
 
   // Scoreboard
   $('scoreboard').hidden = status === 'pregame';
   $('score-points').textContent = game.points;
+  $('score-opp-logo').src = opp.logo;
+  $('score-opp-logo').alt = `${opp.full} logo`;
+  $('score-opp-name').textContent = opp.name;
   $('score-quarter').textContent = status === 'final' ? 'FINAL'
     : status === 'halftime' ? 'HALF'
     : `${game.periods === 2 ? 'H' : 'Q'}${game.quarter}`;
@@ -398,10 +431,21 @@ export function renderGame() {
   else renderShot();
 }
 
-// Today's plays (a new one marked), the week, the season
+// Today's opponent, plays (a new one marked), the week, the season
 function renderPregame() {
-  const { season } = state;
+  const { season, game } = state;
+  const opp = getTeam(game.opponent);
   $('pregame-sub').textContent = `${LENGTHS[state.settings.length].desc} · swish for 3`;
+  $('pregame-opp-logo').src = opp.logo;
+  $('pregame-opp-logo').alt = `${opp.full} logo`;
+  $('pregame-opp-city').textContent = opp.city;
+  $('pregame-opp-name').textContent = opp.name;
+  $('opponent-grid').innerHTML = TEAM_IDS.map((id) => {
+    const t = TEAMS[id];
+    const active = id === opp.id;
+    return `<button class="opp-chip ${active ? 'active' : ''}" data-action="pick-opponent" data-value="${id}" aria-pressed="${active}"><img class="opp-chip-logo" src="${t.logo}" alt=""><span class="opp-chip-name">${t.name}</span></button>`;
+  }).join('');
+
   const on = PATH.filter((id) => state.progress[id].unlocked && state.playbook.includes(id));
   $('pregame-plays').innerHTML = on.map((id) => {
     const isNew = !state.progress[id].introduced;
@@ -416,12 +460,14 @@ function renderPregame() {
 
 function renderHalftime() {
   const { game } = state;
+  $('half-matchup').innerHTML = matchupPillHtml(getTeam(game.opponent));
   $('half-points').textContent = game.points;
   $('half-tip').textContent = (PLAYS[game.tipKind] || PLAYS.equation).tip;
 }
 
 function renderFinal() {
   const { game, season } = state;
+  $('final-matchup').innerHTML = matchupPillHtml(getTeam(game.opponent));
   $('final-points').textContent = game.points;
   $('final-headline').textContent = game.headline;
   const putBacks = game.makes - game.threes - game.assists;
@@ -489,9 +535,10 @@ function renderShot() {
   $('shot-cue').textContent = cue || '';
 
   const call = $('shot-call');
+  const safeCall = escHtml(game.call);
   call.hidden = !game.call;
   call.className = `call ${made ? 'made' : 'miss'}`;
-  call.innerHTML = made ? `<span class="pts">+${game.lastPoints}</span>${game.call}` : game.call;
+  call.innerHTML = made ? `<span class="pts">+${game.lastPoints}</span>${safeCall}` : safeCall;
 
   // Coach's note: the hint, then a little more
   let note = '';

@@ -35,11 +35,27 @@ const APP_SHELL = [
   './js/sheets.js',
   './js/panel.js',
   './js/lines.js',
+  './js/teams.js',
   './js/log.js',
+  './js/cloud.js',
   './js/pwa.js',
   './js/version.js',
   './manifest.webmanifest',
   './img/lynx-logo.svg',
+  './img/teams/dream.svg',
+  './img/teams/sky.svg',
+  './img/teams/sun.svg',
+  './img/teams/wings.svg',
+  './img/teams/valkyries.svg',
+  './img/teams/fever.svg',
+  './img/teams/aces.svg',
+  './img/teams/sparks.svg',
+  './img/teams/liberty.svg',
+  './img/teams/mercury.svg',
+  './img/teams/fire.svg',
+  './img/teams/storm.svg',
+  './img/teams/tempo.svg',
+  './img/teams/mystics.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
@@ -86,7 +102,9 @@ async function networkFirst(request) {
     : new Request(request, { cache: 'no-cache' });
 
   const network = fetch(freshRequest).then((response) => {
-    if (response.ok) cache.put(request, response.clone());
+    if (response.status >= 500) throw new Error(`HTTP ${response.status}`);
+    // Only whole responses: a 206 (partial) can't be cached
+    if (response.status === 200) cache.put(request, response.clone());
     return response;
   });
   network.catch(() => {}); // handled below; avoids an unhandled-rejection warning

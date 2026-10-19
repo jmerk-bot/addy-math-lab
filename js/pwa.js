@@ -9,6 +9,7 @@
 // version has been published since.
 
 import { APP_VERSION } from './version.js';
+import { saveState } from './state.js';
 
 const isDev = APP_VERSION.startsWith('__');
 const CHECK_EVERY_MS = 60 * 1000;
@@ -38,6 +39,7 @@ async function reloadIfOutdated() {
   } catch (e) {
     return;
   }
+  saveState({ touch: false });
   location.reload();
 }
 

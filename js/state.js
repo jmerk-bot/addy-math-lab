@@ -1,9 +1,11 @@
 // App state, and saving/restoring it between launches.
 
 import { OPS } from './math.js';
+import { isInt, isDay } from './kit.js';
 import { LEVELS, PLAY_IDS, PLAYS, isValidProblem } from './plays.js';
 import { freshProgress, RECENT, SEASON_RECENT } from './coach.js';
-import { LOG_KEY, LOG_VERSION, isLog, isShotRecord, isSkipRecord, logEvents } from './log.js';
+import { LOG_KEY, LOG_VERSION, isLog, isShotRecord, isSkipRecord, logEvents, applySavedLog } from './log.js';
+import { TEAM_IDS, pickRandomTeam } from './teams.js';
 import { APP_VERSION } from './version.js';
 
 export const SHOTS_PER_QUARTER = 5;
@@ -17,9 +19,10 @@ export const LENGTHS = {
 
 export const GAME_STATUSES = ['pregame', 'shot', 'made', 'halftime', 'final'];
 
-function freshGame(periods = 4) {
+function freshGame(periods = 4, opponent = pickRandomTeam()) {
   return {
     status: 'pregame', // one of GAME_STATUSES
+    opponent: TEAM_IDS.includes(opponent) ? opponent : pickRandomTeam(), // WNBA opponent team id (see js/teams.js)
     periods, // 4 quarters, or 2 halves for a quick game
     quarter: 1,
     shot: 0, // shots made so far this quarter
@@ -87,6 +90,7 @@ export const DEFAULT_SETTINGS = {
 
 // A new install starts with Equations only; the rest unlock along the path
 export const state = {
+  updatedAt: 0, // timestamp (ms) of the last user action, used for cloud sync
   mode: 'game', // 'game' | 'lab' (Practice)
   level: 'starter', // the base level; new plays start one below it
   playbook: ['equation'], // unlocked plays that are switched on
@@ -103,8 +107,8 @@ export const state = {
   paused: []
 };
 
-export function resetGame(periods) {
-  state.game = freshGame(periods);
+export function resetGame(periods, opponent = pickRandomTeam(state.game?.opponent)) {
+  state.game = freshGame(periods, opponent);
 }
 
 export function resetSeason() {
@@ -124,12 +128,18 @@ const OLD_KEYS = ['addy-math-lab:v1', V2_KEY, V3_KEY]; // earlier layouts, clear
 let oldKeysCleared = false;
 let frozen = false; // set while restoring a copy, so nothing overwrites it before the reload
 
-const isInt = (n) => Number.isInteger(n) && n >= 0;
 const isBits = (arr) => Array.isArray(arr) && arr.every((x) => x === 0 || x === 1);
 
 function savedState() {
-  const { mode, level, playbook, progress, ops, settings, lab, game, season, paused } = state;
-  return { mode, level, playbook, progress, ops, settings, lab, game, season, paused };
+  const { updatedAt, mode, level, playbook, progress, ops, settings, lab, game, season, paused } = state;
+  return { updatedAt, mode, level, playbook, progress, ops, settings, lab, game, season, paused };
+}
+
+export function serializeState() {
+  return {
+    ...savedState(),
+    log: { v: LOG_VERSION, events: logEvents() }
+  };
 }
 
 // Drops paused concepts a grown-up has already turned back on another way (the
@@ -142,9 +152,10 @@ export function tidyPaused() {
 // Whether a shot of `kind` about concept `key` is paused
 export const isPaused = (kind, key) => state.paused.some((x) => x.kind === kind && (x.key === key || x.key === '*'));
 
-export function saveState() {
+export function saveState({ touch = true } = {}) {
   if (frozen) return;
   try {
+    if (touch) state.updatedAt = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(savedState()));
     if (!oldKeysCleared) {
       OLD_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -161,12 +172,30 @@ export function loadState() {
   } catch (e) {
     return;
   }
-  if (!saved || typeof saved !== 'object') return;
+  applySavedState(saved);
+}
+
+export function applySavedState(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+
+  // Support both direct state snapshots and full backup-copy envelopes
+  let saved = raw;
+  if (raw.app === 'addy-math-lab' && raw.type === 'backup' && raw.state && typeof raw.state === 'object') {
+    saved = raw.stateKey === V3_KEY ? fromV3(raw.state)
+      : raw.stateKey === V2_KEY ? fromV3(fromV2(raw.state))
+      : raw.state;
+    if (!saved) return false;
+  }
+
+  if (isInt(saved.updatedAt)) {
+    state.updatedAt = saved.updatedAt;
+  }
 
   if (saved.mode === 'lab' || saved.mode === 'game') state.mode = saved.mode;
-  if (LEVELS.includes(saved.level)) state.level = saved.level;
+  state.level = LEVELS.includes(saved.level) ? saved.level : 'starter';
 
-  if (saved.progress && typeof saved.progress === 'object') {
+  state.progress = startingProgress(['equation'], state.level);
+  if (saved.progress && typeof saved.progress === 'object' && !Array.isArray(saved.progress)) {
     for (const id of PLAY_IDS) {
       const p = loadProgress(saved.progress[id]);
       if (p) state.progress[id] = p;
@@ -184,13 +213,15 @@ export function loadState() {
     state.playbook = unlocked;
   }
 
+  state.ops = [...OPS];
   if (Array.isArray(saved.ops)) {
     const valid = OPS.filter((op) => saved.ops.includes(op));
     if (valid.length) state.ops = valid;
   }
 
+  state.settings = { ...DEFAULT_SETTINGS };
   const s = saved.settings;
-  if (s && typeof s === 'object') {
+  if (s && typeof s === 'object' && !Array.isArray(s)) {
     for (const key of ['sound', 'speech', 'autoLevel', 'autoUnlock']) {
       if (typeof s[key] === 'boolean') state.settings[key] = s[key];
     }
@@ -202,31 +233,58 @@ export function loadState() {
     state.lab = { a: lab.a, b: lab.b, op: lab.op };
   }
 
+  state.paused = [];
   if (Array.isArray(saved.paused)) {
-    state.paused = saved.paused.filter((x) => x && PLAY_IDS.includes(x.kind) && typeof x.key === 'string'
-      && typeof x.label === 'string' && typeof x.day === 'string');
+    state.paused = saved.paused
+      .filter((x) => x && typeof x === 'object' && PLAY_IDS.includes(x.kind)
+        && typeof x.key === 'string' && x.key.length > 0 && x.key.length <= 32
+        && typeof x.label === 'string' && x.label.trim().length > 0 && x.label.length <= 64
+        && isDay(x.day))
+      .map(({ kind, key, label, day }) => ({ kind, key, label: label.trim(), day }));
     tidyPaused();
   }
 
+  state.game = freshGame(LENGTHS[state.settings.length].periods);
   loadGame(saved.game);
+  state.season = freshSeason();
   loadSeason(saved.season);
+
+  const log = raw.log ?? saved.log;
+  if (log && isLog(log)) {
+    applySavedLog(log);
+  }
+  return true;
 }
 
 function loadProgress(p) {
-  if (!p || typeof p !== 'object') return null;
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
   const ints = ['fresh', 'unlockedAt', 'streak', 'slump', 'shots', 'swishes'];
   if (typeof p.unlocked !== 'boolean' || typeof p.introduced !== 'boolean' || !LEVELS.includes(p.level)
-    || ![0, 1, 2].includes(p.tier) || !ints.every((k) => isInt(p[k])) || !isBits(p.recent)) return null;
-  return { ...freshProgress(p.level), ...p, recent: p.recent.slice(-RECENT) };
+    || ![0, 1, 2].includes(p.tier) || !ints.every((k) => isInt(p[k])) || !isBits(p.recent)
+    || p.swishes > p.shots) return null;
+  return {
+    unlocked: p.unlocked,
+    introduced: p.introduced,
+    fresh: p.fresh,
+    unlockedAt: p.unlockedAt,
+    level: p.level,
+    tier: p.tier,
+    streak: p.streak,
+    slump: p.slump,
+    shots: p.shots,
+    swishes: p.swishes,
+    recent: p.recent.slice(-RECENT)
+  };
 }
 
 function loadGame(g) {
   const counters = ['quarter', 'shot', 'points', 'threes', 'makes', 'streak', 'bestStreak', 'misses', 'lastPoints'];
-  if (!g || !GAME_STATUSES.includes(g.status) || !counters.every((k) => isInt(g[k]))) return;
+  if (!g || typeof g !== 'object' || !GAME_STATUSES.includes(g.status) || !counters.every((k) => isInt(g[k]))) return;
   const periods = g.periods === 2 ? 2 : 4;
   if (g.quarter < 1 || g.quarter > periods) return;
+  if (g.shot > SHOTS_PER_QUARTER || ((g.status === 'shot' || g.status === 'halftime') && g.shot >= SHOTS_PER_QUARTER)) return;
 
-  const game = freshGame(periods);
+  const game = freshGame(periods, TEAM_IDS.includes(g.opponent) ? g.opponent : undefined);
   counters.forEach((k) => { game[k] = g[k]; });
   for (const k of ['assists', 'help', 'readingThisPeriod', 'freshShots', 'calm']) {
     if (isInt(g[k])) game[k] = g[k];
@@ -239,16 +297,21 @@ function loadGame(g) {
   if (PLAY_IDS.includes(g.skipped)) game.skipped = g.skipped;
   game.assisted = g.assisted === true;
   game.comfort = g.comfort === true;
-  for (const k of ['call', 'headline', 'unlocked', 'tipKind']) {
-    if (typeof g[k] === 'string') game[k] = g[k];
+  for (const k of ['call', 'headline']) {
+    if (typeof g[k] === 'string' && g[k].length <= 200) game[k] = g[k];
   }
-  if (g.used && typeof g.used === 'object') {
+  for (const k of ['unlocked', 'tipKind']) {
+    if (PLAY_IDS.includes(g[k])) game[k] = g[k];
+  }
+  if (g.used && typeof g.used === 'object' && !Array.isArray(g.used)) {
     game.used = Object.fromEntries(PLAY_IDS.filter((id) => isInt(g.used[id])).map((id) => [id, g.used[id]]));
   }
   if (Array.isArray(g.lastKinds)) game.lastKinds = g.lastKinds.filter((id) => PLAY_IDS.includes(id)).slice(-3);
   if (Array.isArray(g.film)) game.film = g.film.filter(isValidProblem).slice(0, 6);
   if (Array.isArray(g.levelUps)) {
-    game.levelUps = g.levelUps.filter((u) => u && PLAY_IDS.includes(u.kind) && LEVELS.includes(u.level));
+    game.levelUps = g.levelUps
+      .filter((u) => u && PLAY_IDS.includes(u.kind) && LEVELS.includes(u.level))
+      .map(({ kind, level }) => ({ kind, level }));
   }
 
   if (g.status === 'shot' || g.status === 'made') {
@@ -266,14 +329,14 @@ function loadGame(g) {
 }
 
 function loadSeason(s) {
-  if (!s || !['games', 'points', 'high', 'threes', 'bestStreak'].every((k) => isInt(s[k]))) return;
+  if (!s || typeof s !== 'object' || !['games', 'points', 'high', 'threes', 'bestStreak'].every((k) => isInt(s[k]))) return;
   const season = freshSeason();
   for (const k of ['games', 'points', 'high', 'threes', 'bestStreak']) season[k] = s[k];
   if (isInt(s.highQuick)) season.highQuick = s.highQuick;
   if (isBits(s.recent)) season.recent = s.recent.slice(-SEASON_RECENT);
-  if (s.days && typeof s.days === 'object') {
+  if (s.days && typeof s.days === 'object' && !Array.isArray(s.days)) {
     season.days = Object.fromEntries(Object.entries(s.days)
-      .filter(([day, n]) => /^\d{4}-\d\d-\d\d$/.test(day) && isInt(n))
+      .filter(([day, n]) => isDay(day) && isInt(n))
       .sort()
       .slice(-60));
   }

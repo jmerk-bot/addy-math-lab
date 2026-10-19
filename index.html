@@ -39,11 +39,19 @@
     <div id="view-game" class="view">
       <section id="scoreboard" class="scoreboard" hidden>
         <div class="score-team">
-          <span class="team">LYNX</span>
-          <span class="player">ADDY</span>
+          <img class="score-logo" src="img/lynx-logo.svg" alt="">
+          <div class="score-team-info">
+            <span class="team">LYNX</span>
+            <span class="player">ADDY · LIV · PHE</span>
+          </div>
         </div>
         <div id="score-points" class="score-points">0</div>
         <div class="score-right">
+          <div class="score-opp" aria-label="Opponent">
+            <span class="score-vs">VS</span>
+            <img id="score-opp-logo" class="score-opp-logo" src="img/teams/liberty.svg" alt="New York Liberty logo">
+            <span id="score-opp-name" class="score-opp-name">Liberty</span>
+          </div>
           <span id="score-quarter" class="score-quarter">Q1</span>
           <div id="shot-dots" class="shot-dots" aria-label="Shots this quarter"></div>
           <span id="score-streak" class="score-streak" hidden>🔥</span>
@@ -53,6 +61,30 @@
       <section id="game-pregame" class="card center-card">
         <h2>Game time</h2>
         <p id="pregame-sub" class="card-sub">4 quarters · 20 shots · swish for 3</p>
+        <div class="matchup-box">
+          <div class="matchup-banner">
+            <div class="matchup-side lynx-side">
+              <img class="matchup-logo" src="img/lynx-logo.svg" alt="Minnesota Lynx logo">
+              <div class="matchup-team-text">
+                <span class="matchup-city">Minnesota</span>
+                <span class="matchup-name">Lynx</span>
+              </div>
+            </div>
+            <span class="matchup-vs">VS</span>
+            <div class="matchup-side opp-side">
+              <img id="pregame-opp-logo" class="matchup-logo" src="img/teams/liberty.svg" alt="New York Liberty logo">
+              <div class="matchup-team-text">
+                <span id="pregame-opp-city" class="matchup-city">New York</span>
+                <span id="pregame-opp-name" class="matchup-name">Liberty</span>
+              </div>
+            </div>
+          </div>
+          <div class="opponent-head">
+            <span class="opponent-label">Pick today's opponent:</span>
+            <button class="random-opp-btn" data-action="random-opponent">🎲 Random team</button>
+          </div>
+          <div id="opponent-grid" class="opponent-grid" role="group" aria-label="Choose opponent WNBA team"></div>
+        </div>
         <div id="pregame-plays" class="play-chips" aria-label="Plays in today's game"></div>
         <p id="pregame-new" class="new-note" hidden></p>
         <button class="big-btn" data-action="tip-off">Tip-off 🏀</button>
@@ -125,6 +157,7 @@
 
       <section id="game-halftime" class="card center-card" hidden>
         <h2>Halftime</h2>
+        <div id="half-matchup" class="matchup-pill"></div>
         <p class="big-number"><span id="half-points">0</span> <span class="big-number-unit">points</span></p>
         <div class="breathe" aria-hidden="true">
           <svg class="breathe-ball" viewBox="0 0 24 24">
@@ -142,6 +175,7 @@
 
       <section id="game-final" class="card center-card" hidden>
         <h2>Final</h2>
+        <div id="final-matchup" class="matchup-pill"></div>
         <p class="big-number"><span id="final-points">0</span> <span class="big-number-unit">points</span></p>
         <p id="final-headline" class="headline"></p>
         <p id="final-stats" class="card-sub"></p>
@@ -149,7 +183,7 @@
         <p id="final-unlock" class="new-note" hidden></p>
         <div class="final-actions">
           <button id="film-btn" class="link-btn" data-action="film" hidden>Film room 🎬</button>
-          <button class="big-btn" data-action="tip-off">New game 🏀</button>
+          <button class="big-btn" data-action="new-game">New game 🏀</button>
         </div>
         <div id="season-final" class="season"></div>
       </section>

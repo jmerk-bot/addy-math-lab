@@ -20,7 +20,7 @@ export function equationText(p, { solved = false } = {}) {
 
 export function isValidEquation(p) {
   return OPS.includes(p.op)
-    && SLOTS.every((k) => isInt(p[k]))
+    && SLOTS.every((k) => isInt(p[k]) && p[k] <= 99999)
     && SLOTS.includes(p.missing)
     && p.a >= 1
     && (p.op !== '-' || p.b <= p.a)
@@ -48,7 +48,7 @@ const equationShape = {
   text: equationText,
   toLab: equationToLab,
   board: (p) => manipulativeHtml(p.a, p.b, p.op),
-  isValid: isValidEquation
+  isValid: (p) => isValidEquation(p) && p.a <= 1000 && p.b <= 1000
 };
 
 // ---------- Worked steps ----------
@@ -379,7 +379,8 @@ export const leftovers = {
   toLab: (p) => ({ op: '÷', a: p.a, b: 1 }),
   isValid: (p) => p.op === '÷'
     && ['a', 'b', 'result', 'remainder'].every((k) => isInt(p[k]))
-    && p.b >= 2
+    && p.a >= 1 && p.a <= 999
+    && p.b >= 2 && p.b <= 12
     && p.remainder < p.b
     && p.a === p.result * p.b + p.remainder
 };

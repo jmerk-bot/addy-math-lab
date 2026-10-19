@@ -5,15 +5,17 @@ import { state, loadState, saveState } from './state.js';
 import { PLAYS, PATH } from './plays.js';
 import { playChime, setSound, speak } from './audio.js';
 import { clampLab, renderLab, setLabOp, stepA, stepB } from './lab.js';
-import { tipOff, pressKey, selectBox, askCoach, skipChoices, skipShot, nextShot, resumeHalf, renderGame } from './game.js';
+import { tipOff, pickOpponent, randomOpponent, newGame, pressKey, selectBox, askCoach, skipChoices, skipShot, nextShot, resumeHalf, renderGame } from './game.js';
 import { openBoard, openShowMe, openIntro, openSkip, openFilm, sheetNext, sheetPrev, closeSheet, sheetIsOpen } from './sheets.js';
-import { openCoach, coachActions, backupPicked } from './panel.js';
+import { openCoach, renderCoach, coachActions, backupPicked } from './panel.js';
 import { loadLog, logStart } from './log.js';
 import { initPwa } from './pwa.js';
+import { initCloud } from './cloud.js';
 
 const $ = (id) => document.getElementById(id);
 
 function switchMode(newMode, { boot = false } = {}) {
+  if (newMode !== 'game' && newMode !== 'lab') return;
   state.mode = newMode;
   $('tab-game').classList.toggle('active', newMode === 'game');
   $('tab-lab').classList.toggle('active', newMode === 'lab');
@@ -100,6 +102,9 @@ const actions = {
   'coach-open': () => openCoach(true),
   'coach-close': () => openCoach(false),
   ...coachActions,
+  'pick-opponent': (value) => pickOpponent(value),
+  'random-opponent': () => randomOpponent(),
+  'new-game': () => newGame(),
   'tip-off': () => startGame(),
   'key': (value) => pressKey(value),
   'box': (value) => selectBox(Number(value)),
@@ -120,12 +125,20 @@ const actions = {
   'step-b': (value) => stepB(Number(value))
 };
 
+const NO_TOUCH_ACTIONS = new Set([
+  'coach-open', 'coach-close', 'coach-tab',
+  'cloud-save', 'cloud-clear',
+  'backup-download', 'backup-share', 'backup-restore',
+  'confirm-no'
+]);
+
 document.addEventListener('click', (event) => {
   const el = event.target.closest('[data-action]');
   if (!el) return;
-  actions[el.dataset.action]?.(el.dataset.value);
+  const action = el.dataset.action;
+  actions[action]?.(el.dataset.value);
   renderLabBanner();
-  saveState();
+  saveState({ touch: !NO_TOUCH_ACTIONS.has(action) });
   armNudge();
 });
 
@@ -136,6 +149,13 @@ const KEY_MAP = { ',': '<', '.': '>', '<': '<', '>': '>', '=': '=' };
 
 document.addEventListener('keydown', (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.target?.id === 'cloud-token') {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      actions['cloud-save']?.();
+    }
+    return;
+  }
   if (sheetIsOpen()) {
     if (event.key === 'Enter') $('sheet-card').querySelector('.big-btn')?.click();
     else if (event.key === 'Escape') actions['sheet-close']();
@@ -153,6 +173,7 @@ document.addEventListener('keydown', (event) => {
   else if (status === 'shot') pressKey('solve');
   else if (status === 'made') nextShot();
   else if (status === 'halftime') resumeHalf();
+  else if (status === 'final') newGame();
   else startGame();
   if (!handled) return;
   event.preventDefault();
@@ -167,15 +188,27 @@ document.addEventListener('visibilitychange', () => {
 // "Restore from a copy" in Change the Game opens this file picker
 $('restore-file').addEventListener('change', (event) => backupPicked(event.target.files?.[0]));
 
+function refreshAfterStateLoad() {
+  setSound(state.settings.sound);
+  clampLab();
+  renderLab();
+  renderGame();
+  if (!$('coach').hidden) renderCoach();
+  switchMode(state.mode, { boot: true });
+  armNudge();
+}
+
 // Boot. The journey log starts with a note of where things stand.
 loadState();
 loadLog();
 logStart(state);
-setSound(state.settings.sound);
-clampLab();
-renderLab();
-renderGame();
-switchMode(state.mode, { boot: true });
+refreshAfterStateLoad();
 initPwa();
-saveState();
-armNudge();
+saveState({ touch: false });
+initCloud(() => {
+  closeSheet();
+  refreshAfterStateLoad();
+  saveState({ touch: false });
+});
+// Ask the browser not to clear the app's storage (the journey log lives there)
+navigator.storage?.persist?.().catch(() => {});

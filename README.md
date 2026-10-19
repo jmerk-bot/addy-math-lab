@@ -14,14 +14,14 @@ It's a Progressive Web App (PWA). Install it once on a tablet and it opens full-
 
 ## Playing
 
-- **Game:** tap **Tip-off**, answer each shot on the number pad (or the big < = > keys for comparing) and tap ✓. The scoreboard shows points, the quarter and the shots left. Halftime comes in the middle, with a basketball to breathe along with and a tip from Coach Cheryl; the final buzzer shows a stat line, any plays that moved up a level, and the season record.
+- **Game:** on the pregame screen, pick which **WNBA team** the Lynx are playing against (or tap **🎲 Random team**), then tap **Tip-off**, answer each shot on the number pad (or the big < = > keys for comparing) and tap ✓. The scoreboard shows the Lynx (Addy, Liv, and Phe), the points, the opponent team, the quarter, and the shots left. Halftime comes in the middle, with a basketball to breathe along with and a tip from Coach Cheryl; the final buzzer shows a stat line, any plays that moved up a level, and the season record.
 - **Plays:** each shot comes from one of thirteen plays: Equations, Big numbers, Leftovers, Fractions, Story shots, Place value, Measurement, Times as many, Round & compare, Area & perimeter, Leftover stories, Two-step plays and Angles. Story shots have a 🔊 button that reads them aloud.
 - **The training path:** a new install starts with Equations; the other plays unlock one at a time, in that order, when shots are going well (70% swishes over the last 40 shots, the newest play steady, and at least two games since the last new play). A new play starts with a worked example from Coach Cheryl at tip-off, then appears just twice, mid-game, in its first game.
 - **Difficulty moves in small steps, per play:** three swishes in a row move a play up a step; two put-backs in a row move it down a step, quietly. Every game opens and closes with a familiar shot, and after a rough patch the next shot or two are familiar too.
 - **Help is always there:** **Go Practice This Play** builds the shot in Practice, or opens a picture of it (which can also send it to Practice). **Ask Coach Cheryl** gives a hint, then a bit more, then **Show me how**, a worked example step by step; the shot is still worth 1 after that. **I don't know this yet** swaps the shot for a different one (no points lost, no miss) and asks which fits: tired of this play (it sits out the rest of the game), this one is too hard (the play gets a little easier), or not ready for it yet (just that part, like Equations' division, is paused until it's turned back on in Change the Game).
 - **Film room 🎬:** after the final buzzer, each shot that needed a rebound, worked through. Nothing there is scored.
-- **Change the Game** (top right), for the grown-up: **Playbook** (anything paused from a shot, with a button to turn it back on; camps; the training path with each play's level; unlocking a play early; the operations Equations uses), **Stats** (a shot chart by kind of play, this week, the season) and **Settings** (full or quick game, automatic difficulty and new plays, sounds, read-aloud, a base level for every play, and the journey log).
-- **Journey log:** every finished game is recorded on the tablet, shot by shot and dated, starting from a note of where each play stood. In **Change the Game → Settings**, **Download a copy** (or **Share a copy**, where the tablet can share files) saves the log, plays, levels and season to one file; **Restore from a copy** puts one back. It's a backup, and the base for tracking progress over time.
+- **Change the Game** (top right), for the grown-up: **Playbook** (anything paused from a shot, with a button to turn it back on; camps; the training path with each play's level; unlocking a play early; the operations Equations uses), **Stats** (a shot chart by kind of play, this week, the season) and **Settings** (full or quick game, automatic difficulty and new plays, sounds, read-aloud, a base level for every play, cloud backup, and the journey log).
+- **Cloud backup & Journey log:** every finished game is recorded on the tablet, shot by shot and dated, starting from a note of where each play stood. In **Change the Game → Settings**, a GitHub token with `gist` access can be saved to back up and restore progress (including the journey log) to a private GitHub Gist (`addy-math-lab-state.json`) every active minute. **Download a copy** (or **Share a copy**, where the tablet can share files) also saves the log, plays, levels and season to one file; **Restore from a copy** puts one back.
 
 ## How updates reach the tablet
 
@@ -53,7 +53,7 @@ node scripts/check-plays.mjs
 | `index.html` | Page markup, including the footer disclaimer. Buttons use `data-action` / `data-value` instead of inline handlers. |
 | `css/styles.css` | All styles. Colors are CSS variables at the top. |
 | `js/main.js` | Entry point: wires buttons and keys, switches Game / Practice, boots the app. |
-| `js/game.js` | Game flow: shots, the number pad and answer boxes, the help ladder, scoring, quarters, halftime and the final. |
+| `js/game.js` | Game flow: opponent selection, shots, the number pad and answer boxes, the help ladder, scoring, quarters, halftime and the final. |
 | `js/coach.js` | The coach: per-play difficulty, unlocking new plays, and choosing each shot (warm-ups, closers, variety). |
 | `js/plays.js` | The playbook: every play in path order, shot-chart zones, camps. |
 | `js/play-numbers.js` | Equations, Big numbers, Leftovers. |
@@ -68,15 +68,18 @@ node scripts/check-plays.mjs
 | `js/lab-limits.js` | Practice's limits for A and B. |
 | `js/state.js` | Shared state, save/restore via `localStorage` (with migration from older saves), and backup copies. |
 | `js/log.js` | The journey log: a dated, shot-by-shot record of every game, under its own `localStorage` key. |
+| `js/cloud.js` | Cloud backup and restore to a private GitHub Gist (`addy-math-lab-state.json`) every active minute. |
+| `js/teams.js` | Opponent WNBA teams, logos (`img/teams/*.svg`), and random opponent selection. |
 | `js/kit.js` | Helpers for the plays: levels, random picks, number words, dates. |
 | `js/math.js` | Number helpers: operations, `compute()`, and `fmt()` for commas. |
-| `js/lines.js` | The announcer's lines for makes, misses, assists, streaks and the final headline. |
+| `js/lines.js` | The announcer's lines for makes, misses, assists, streaks and the final headline (featuring Addy, Olivia Miles "Liv", and Napheesa Collier "Phe"). |
 | `js/audio.js` | Web Audio tones (an ascending pentatonic scale), the success chord, the final horn, and read-aloud. |
 | `js/pwa.js` | Service worker registration, fullscreen, and the update check. |
 | `js/version.js` | Version placeholder, stamped at deploy time. |
 | `sw.js` | Service worker: network-first with offline fallback. |
 | `manifest.webmanifest` | App name, colors, icons. |
 | `img/lynx-logo.svg` | Team logo in the header (from Wikipedia; see the disclaimer). |
+| `img/teams/` | Opponent WNBA team SVG logos (from Wikipedia; see the disclaimer). |
 | `icons/` | `icon.svg` / `icon-maskable.svg` sources plus rendered PNGs. |
 | `scripts/make-icons.sh` | Re-renders the PNG icons from the SVGs (needs Google Chrome). |
 | `scripts/check-plays.mjs` | Checks every play, simulates seasons through the coach, and checks the journey log and backups (needs Node). |

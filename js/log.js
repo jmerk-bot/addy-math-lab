@@ -28,17 +28,15 @@
 // it caused (0, or negative for "too hard"), and the concept key it was about
 // ('*' for the whole play; see conceptOf() in js/plays.js).
 
-import { LEVELS, dayKey } from './kit.js';
+import { LEVELS, dayKey, isInt, isDay } from './kit.js';
 import { PLAY_IDS } from './plays.js';
+import { TEAM_IDS } from './teams.js';
 
 export const LOG_KEY = 'addy-math-lab:log';
 export const LOG_VERSION = 1;
 
 let events = [];
 let writable = true; // false once a write has failed (storage full)
-
-const isInt = (n) => Number.isInteger(n) && n >= 0;
-const isDay = (d) => typeof d === 'string' && /^\d{4}-\d\d-\d\d$/.test(d);
 
 // Difficulty as one number: three tiers per level, so every change is ±1
 export const stepOf = (level, tier) => LEVELS.indexOf(level) * 3 + tier;
@@ -55,21 +53,38 @@ export const SKIP_REASONS = ['tired', 'hard', 'notready'];
 export function isSkipRecord(r) {
   return Array.isArray(r) && r.length === 7 && isInt(r[0])
     && PLAY_IDS.includes(r[1]) && LEVELS.includes(r[2]) && [0, 1, 2].includes(r[3])
-    && SKIP_REASONS.includes(r[4]) && Number.isInteger(r[5]) && r[5] <= 0 && r[5] >= -6 && typeof r[6] === 'string';
+    && SKIP_REASONS.includes(r[4]) && Number.isInteger(r[5]) && r[5] <= 0 && r[5] >= -6
+    && typeof r[6] === 'string' && r[6].length > 0 && r[6].length <= 32;
 }
 
 // Keeps any well-formed event (including kinds a newer version may add);
 // a game keeps only its well-formed shots
 function cleanEvent(e) {
-  if (!e || typeof e !== 'object' || typeof e.e !== 'string' || !isDay(e.d)) return null;
+  if (!e || typeof e !== 'object' || Array.isArray(e) || typeof e.e !== 'string' || !isDay(e.d)) return null;
+  if (e.e === 'start') {
+    if (!LEVELS.includes(e.base) || !e.plays || typeof e.plays !== 'object' || Array.isArray(e.plays)) return null;
+    const plays = Object.fromEntries(Object.entries(e.plays)
+      .filter(([id, v]) => PLAY_IDS.includes(id) && Array.isArray(v) && LEVELS.includes(v[0]) && [0, 1, 2].includes(v[1]))
+      .map(([id, [l, t]]) => [id, [l, t]]));
+    return { ...e, plays };
+  }
+  if (e.e === 'base' && !LEVELS.includes(e.level)) return null;
+  if (e.e === 'set' && (!PLAY_IDS.includes(e.kind) || !LEVELS.includes(e.level))) return null;
+  if (e.e === 'unlock' && !PLAY_IDS.includes(e.kind)) return null;
+  if (e.e === 'resume' && (!PLAY_IDS.includes(e.kind) || typeof e.key !== 'string')) return null;
   if (e.e !== 'game') return e;
+  if (!isInt(e.n) || !isInt(e.pts) || (e.len !== 'full' && e.len !== 'quick')) return null;
+  if (e.unlocked !== undefined && !PLAY_IDS.includes(e.unlocked)) return null;
+  if (e.opp !== undefined && !TEAM_IDS.includes(e.opp)) return null;
   const shots = Array.isArray(e.shots) ? e.shots.filter(isShotRecord) : [];
   const skips = Array.isArray(e.skips) ? e.skips.filter(isSkipRecord) : [];
-  return { ...e, shots, ...(skips.length ? { skips } : {}) };
+  const { skips: _skips, ...rest } = e;
+  return { ...rest, shots, ...(skips.length ? { skips } : {}) };
 }
 
 export function isLog(log) {
-  return !!log && typeof log === 'object' && Array.isArray(log.events);
+  return !!log && typeof log === 'object' && !Array.isArray(log)
+    && Array.isArray(log.events) && log.events.every((e) => cleanEvent(e) !== null);
 }
 
 export function loadLog() {
@@ -77,8 +92,17 @@ export function loadLog() {
   writable = true;
   try {
     const saved = JSON.parse(localStorage.getItem(LOG_KEY));
-    if (isLog(saved)) events = saved.events.map(cleanEvent).filter(Boolean);
+    if (saved && typeof saved === 'object' && Array.isArray(saved.events)) {
+      events = saved.events.map(cleanEvent).filter(Boolean);
+    }
   } catch (e) {}
+}
+
+export function applySavedLog(log) {
+  if (!isLog(log)) return false;
+  events = log.events.map(cleanEvent).filter(Boolean);
+  writeLog();
+  return true;
 }
 
 function writeLog() {
@@ -121,6 +145,7 @@ export function logGame(game, n) {
   logEvent('game', {
     n,
     len: game.periods === 2 ? 'quick' : 'full',
+    ...(TEAM_IDS.includes(game.opponent) ? { opp: game.opponent } : {}),
     start: game.start,
     pts: game.points,
     ...(game.unlocked ? { unlocked: game.unlocked } : {}),

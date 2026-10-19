@@ -15,7 +15,8 @@ import {
 } from './play-numbers.js';
 import { partWholeHtml, equalGroupsHtml, compareBarsHtml, tapeHtml, groupsHtml } from './visuals.js';
 
-export const CAST = ['Addy', 'Phee', 'Kayla'];
+export const CAST = ['Addy', 'Phe', 'Liv', 'Kayla'];
+const VALID_CAST = new Set([...CAST, 'Phee']);
 
 function castPair() {
   const P = pickFrom(CAST);
@@ -42,7 +43,7 @@ function storyPrompt(text, unit, box) {
   return `<p class="story-text">${text}</p><div class="answer-line">${box(0)}<span class="answer-unit">${unit}</span></div>`;
 }
 
-const validNames = (p) => CAST.includes(p.P) && (p.Q === undefined || (CAST.includes(p.Q) && p.Q !== p.P));
+const validNames = (p) => VALID_CAST.has(p.P) && (p.Q === undefined || (VALID_CAST.has(p.Q) && p.Q !== p.P));
 
 // A bar model for one operation. ask: which number is unknown ('result' or a slot)
 function modelFor(op, x, y, result, ask, solved, names = {}) {
@@ -304,7 +305,8 @@ export const leftoverstories = {
   isValid: (p) => {
     const tpl = findTemplate(LEFTOVER_STORIES, p.t);
     return !!tpl && tpl.mode === p.mode && ['a', 'b', 'q', 'r'].every((k) => isInt(p[k]))
-      && p.b >= 2 && p.r >= 1 && p.r < p.b && p.a === p.q * p.b + p.r && CAST.includes(p.P);
+      && p.a >= 1 && p.a <= 999 && p.b >= 2 && p.b <= 12 && p.r >= 1 && p.r < p.b
+      && p.a === p.q * p.b + p.r && CAST.includes(p.P);
   }
 };
 
@@ -457,9 +459,9 @@ export const twostep = {
   },
   isValid(p) {
     const tpl = findTemplate(TWO_STEPS, p.t);
-    if (!tpl || (p.step !== 1 && p.step !== 2) || !['a', 'b', 'c'].every((k) => isInt(p[k])) || !validNames(p)) return false;
+    if (!tpl || (p.step !== 1 && p.step !== 2) || !['a', 'b', 'c'].every((k) => isInt(p[k]) && p[k] <= 99999) || !validNames(p)) return false;
     const [x, op, y] = stepEquation(p);
     const answer = compute(x, y, op);
-    return isInt(answer) && (op !== '-' || y <= x) && (op !== '÷' || (y > 0 && x % y === 0));
+    return isInt(answer) && answer <= 99999 && (op !== '-' || y <= x) && (op !== '÷' || (y > 0 && x % y === 0));
   }
 };

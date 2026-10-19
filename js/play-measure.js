@@ -210,7 +210,7 @@ export const area = {
   },
   toLab: (p) => (p.variant === 'area' || p.variant === 'sidearea' ? { op: '×', a: p.w, b: 1 } : null),
   isValid: (p) => ['area', 'perimeter', 'sidearea', 'sideperim'].includes(p.variant)
-    && isInt(p.w) && isInt(p.h) && p.w >= 1 && p.h >= 1 && AREA_UNITS.includes(p.unit)
+    && isInt(p.w) && isInt(p.h) && p.w >= 1 && p.w <= 100 && p.h >= 1 && p.h <= 100 && AREA_UNITS.includes(p.unit)
 };
 
 // ---------- Angles ----------
