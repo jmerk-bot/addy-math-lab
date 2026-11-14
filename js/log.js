@@ -31,6 +31,7 @@
 import { LEVELS, dayKey, isInt, isDay } from './kit.js';
 import { PLAY_IDS } from './plays.js';
 import { TEAM_IDS } from './teams.js';
+import { GEAR_IDS } from './rewards.js';
 
 export const LOG_KEY = 'addy-math-lab:log';
 export const LOG_VERSION = 1;
@@ -72,6 +73,8 @@ function cleanEvent(e) {
   if (e.e === 'set' && (!PLAY_IDS.includes(e.kind) || !LEVELS.includes(e.level))) return null;
   if (e.e === 'unlock' && !PLAY_IDS.includes(e.kind)) return null;
   if (e.e === 'resume' && (!PLAY_IDS.includes(e.kind) || typeof e.key !== 'string')) return null;
+  if (e.e === 'bank' && (!GEAR_IDS.includes(e.gear) || !isInt(e.cents) || !isInt(e.shots))) return null;
+  if (e.e === 'redeem' && (!GEAR_IDS.includes(e.gear) || !isInt(e.cents))) return null;
   if (e.e !== 'game') return e;
   if (!isInt(e.n) || !isInt(e.pts) || (e.len !== 'full' && e.len !== 'quick')) return null;
   if (e.unlocked !== undefined && !PLAY_IDS.includes(e.unlocked)) return null;

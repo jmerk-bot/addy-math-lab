@@ -83,16 +83,20 @@ function progressOf(data) {
   const inGameShots = Array.isArray(s.game?.shotLog)
     ? s.game.shotLog.length
     : (Number.isInteger(s.game?.makes) && s.game.makes > 0 ? s.game.makes : 0);
+  const bankCents = (Number.isInteger(s.rewards?.bankCents) && s.rewards.bankCents > 0 ? s.rewards.bankCents : 0)
+    + (Array.isArray(s.rewards?.redeemed)
+      ? s.rewards.redeemed.reduce((sum, r) => sum + (Number.isInteger(r?.priceCents) && r.priceCents > 0 ? r.priceCents : 0), 0)
+      : 0);
   const updatedAt = Number.isInteger(s.updatedAt) && s.updatedAt > 0 ? s.updatedAt : 0;
 
-  return { totalShots, unlocked, loggedGames, games, points, inGameShots, updatedAt };
+  return { totalShots, unlocked, loggedGames, games, points, bankCents, inGameShots, updatedAt };
 }
 
 export function isCloudAhead(local, cloud) {
   if (!cloud || typeof cloud !== 'object' || Array.isArray(cloud)) return false;
   const l = progressOf(local);
   const c = progressOf(cloud);
-  for (const key of ['totalShots', 'unlocked', 'loggedGames', 'games', 'points', 'updatedAt', 'inGameShots']) {
+  for (const key of ['totalShots', 'unlocked', 'loggedGames', 'games', 'points', 'bankCents', 'updatedAt', 'inGameShots']) {
     if (c[key] !== l[key]) return c[key] > l[key];
   }
   return l.updatedAt === 0 && l.totalShots === 0 && l.games === 0 && Boolean(cloud.progress || cloud.season || cloud.state);

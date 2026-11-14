@@ -12,8 +12,13 @@ import { PLAYS, PATH, LEVEL_NAMES, conceptOf } from './plays.js';
 import { chooseShot, recordShot, stepDown, afterGame, SEASON_RECENT } from './coach.js';
 import { playChime, playSuccessChord, playBuzzer, canSpeak, stopSpeaking } from './audio.js';
 import { callMake, callMiss, callAssist, callSkip, finalHeadline } from './lines.js';
-import { shotRecord, logGame, SKIP_REASONS } from './log.js';
+import { shotRecord, logGame, logEvent, SKIP_REASONS } from './log.js';
 import { TEAMS, TEAM_IDS, getTeam, pickRandomTeam } from './teams.js';
+import {
+  GEAR_IDS, getGear, unassistedMakes, centsForShots, watchSecondsForShots,
+  goalReached, lynxBankHtml, finalRewardHtml, certificateHtml
+} from './rewards.js';
+import { CHANNEL_IDS, openWatch, isWatchOnline } from './watch.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -22,6 +27,9 @@ const MAX_DIGITS = 5;
 const CHOICES = ['<', '=', '>'];
 const FILM_MAX = 6;
 const HELP_LABELS = ['Ask Coach Cheryl', 'More help', 'Show me how', 'Show me again'];
+
+let watchPickerOpen = false;
+let confirmRedeem = false;
 
 export const maxPoints = (game) => game.periods * SHOTS_PER_QUARTER * 3;
 const inputOf = (p) => PLAYS[p.kind].input?.(p) || 'keypad';
@@ -107,12 +115,14 @@ export function randomOpponent() {
 }
 
 export function newGame() {
+  watchPickerOpen = false;
   resetGame(LENGTHS[state.settings.length].periods, pickRandomTeam(state.game.opponent));
   playChime(3);
   renderGame();
 }
 
 export function tipOff() {
+  watchPickerOpen = false;
   const opp = state.game.status === 'pregame' && TEAM_IDS.includes(state.game.opponent)
     ? state.game.opponent
     : pickRandomTeam(state.game.opponent);
@@ -121,6 +131,107 @@ export function tipOff() {
   state.game.start = Date.now();
   newProblem();
   renderGame();
+}
+
+// ---------- Post-game rewards: Lynx Gear Bank, Certificate & Watch ----------
+
+export function certificateIsOpen() {
+  return Boolean(state.rewards.certificateOpen && goalReached(state.rewards));
+}
+
+export function openCertificate() {
+  if (!goalReached(state.rewards)) return;
+  confirmRedeem = false;
+  state.rewards.certificateOpen = true;
+  playSuccessChord();
+  renderGame();
+}
+
+export function closeCertificate({ silent = false } = {}) {
+  confirmRedeem = false;
+  state.rewards.certificateOpen = false;
+  if (!silent) playChime(3);
+  renderGame();
+}
+
+export function askRedeemCertificate(ask) {
+  confirmRedeem = Boolean(ask);
+  renderGame();
+}
+
+export function confirmRedeemCertificate() {
+  const item = getGear(state.rewards.goalId);
+  if (state.rewards.bankCents < item.priceCents) return;
+  state.rewards.bankCents = Math.max(0, state.rewards.bankCents - item.priceCents);
+  state.rewards.redeemed = [
+    ...state.rewards.redeemed,
+    { id: item.id, name: item.name, priceCents: item.priceCents, day: dayKey() }
+  ];
+  logEvent('redeem', { gear: item.id, cents: item.priceCents });
+  // Advance Addy's goal to the next store item she hasn't earned yet (or step up)
+  const nextGoal = GEAR_IDS.find((id) => id !== item.id && !state.rewards.redeemed.some((r) => r.id === id))
+    || GEAR_IDS[(GEAR_IDS.indexOf(item.id) + 1) % GEAR_IDS.length];
+  state.rewards.goalId = nextGoal;
+  confirmRedeem = false;
+  state.rewards.certificateOpen = goalReached(state.rewards);
+  playSuccessChord();
+  renderGame();
+}
+
+// Addy can switch which of the 3 Lynx store items she is saving toward anytime.
+// If her saved Lynx Bank already covers that item's price, move right to the
+// Certificate page so she can show Dad (or tap back to keep saving).
+export function pickGear(id) {
+  if (!GEAR_IDS.includes(id)) return;
+  state.rewards.goalId = id;
+  if (goalReached(state.rewards)) {
+    openCertificate();
+    return;
+  }
+  playChime(5);
+  renderGame();
+}
+
+export function bankGameReward() {
+  const { game, rewards, settings } = state;
+  if (game.status !== 'final' || game.rewardChoice || !settings.rewards) return;
+  const shots = unassistedMakes(game);
+  const cents = centsForShots(shots, rewards.fullGameCents);
+  if (cents <= 0) return;
+
+  rewards.bankCents += cents;
+  game.rewardChoice = 'banked';
+  game.bankedCents = cents;
+  watchPickerOpen = false;
+  logEvent('bank', { gear: rewards.goalId, cents, shots });
+
+  if (goalReached(rewards)) {
+    openCertificate();
+  } else {
+    playSuccessChord();
+    renderGame();
+  }
+}
+
+export function showWatchPicker(open) {
+  if (state.game.status !== 'final' || state.game.rewardChoice || !state.settings.watchRewards) return;
+  watchPickerOpen = Boolean(open);
+  playChime(4);
+  renderGame();
+}
+
+export function startGameWatch(channelId) {
+  const { game, settings } = state;
+  if (game.status !== 'final' || game.rewardChoice || !settings.rewards || !settings.watchRewards) return;
+  if (!CHANNEL_IDS.includes(channelId)) return;
+  const shots = unassistedMakes(game);
+  const sec = watchSecondsForShots(shots);
+  if (sec <= 0) return;
+
+  game.rewardChoice = 'watched';
+  watchPickerOpen = false;
+  renderGame();
+  openWatch(channelId, sec, { onDone: () => renderGame() });
 }
 
 // Number pad and choice keys: '0'–'9', '<' '=' '>', 'back' or 'solve'.
@@ -372,6 +483,7 @@ export function resumeHalf() {
 
 function finishGame() {
   const { game, season } = state;
+  watchPickerOpen = false;
   game.status = 'final';
   game.problem = null;
 
@@ -404,6 +516,16 @@ export function renderGame() {
   const { game } = state;
   const { status } = game;
   const opp = getTeam(game.opponent);
+  const showCert = certificateIsOpen();
+
+  const certEl = $('view-certificate');
+  if (certEl) {
+    certEl.hidden = !showCert;
+    if (showCert) certEl.innerHTML = certificateHtml(state.rewards, { confirmRedeem });
+  }
+  $('view-game').hidden = showCert || state.mode !== 'game';
+  $('view-lab').hidden = showCert || state.mode !== 'lab';
+  if (showCert) return;
 
   // Scoreboard
   $('scoreboard').hidden = status === 'pregame';
@@ -454,6 +576,11 @@ function renderPregame() {
   const newPlay = on.find((id) => !state.progress[id].introduced);
   $('pregame-new').hidden = !newPlay;
   if (newPlay) $('pregame-new').textContent = `New play today: ${PLAYS[newPlay].label}. Coach Cheryl will show you how it works first.`;
+  const bankWrap = $('lynx-bank-pregame');
+  if (bankWrap) {
+    bankWrap.hidden = !state.settings.rewards;
+    bankWrap.innerHTML = state.settings.rewards ? lynxBankHtml(state.rewards) : '';
+  }
   $('week-pregame').innerHTML = weekHtml(season);
   $('season-pregame').innerHTML = seasonHtml(season, state.settings.length === 'quick');
 }
@@ -487,6 +614,13 @@ function renderFinal() {
   const film = $('film-btn');
   film.hidden = !game.film.length;
   film.textContent = `Film room 🎬 (${game.film.length})`;
+  const rewardWrap = $('final-reward');
+  if (rewardWrap) {
+    rewardWrap.hidden = !state.settings.rewards;
+    rewardWrap.innerHTML = state.settings.rewards
+      ? finalRewardHtml(state, { watchPickerOpen, online: isWatchOnline() })
+      : '';
+  }
   $('season-final').innerHTML = seasonHtml(season, game.periods === 2);
 }
 

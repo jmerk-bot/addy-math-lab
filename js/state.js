@@ -6,6 +6,7 @@ import { LEVELS, PLAY_IDS, PLAYS, isValidProblem } from './plays.js';
 import { freshProgress, RECENT, SEASON_RECENT } from './coach.js';
 import { LOG_KEY, LOG_VERSION, isLog, isShotRecord, isSkipRecord, logEvents, applySavedLog } from './log.js';
 import { TEAM_IDS, pickRandomTeam } from './teams.js';
+import { LYNX_GEAR, GEAR_IDS, DEFAULT_FULL_GAME_CENTS, REWARD_RATES } from './rewards.js';
 import { APP_VERSION } from './version.js';
 
 export const SHOTS_PER_QUARTER = 5;
@@ -56,7 +57,24 @@ function freshGame(periods = 4, opponent = pickRandomTeam()) {
     shotLog: [], // this game's shots so far, for the journey log (js/log.js)
     skips: [], // "I don't know this yet" this game, for the log
     resting: [], // plays sitting out the rest of this game ("I'm tired of this kind")
-    skipped: '' // the play just skipped, which sits out the next pick
+    skipped: '', // the play just skipped, which sits out the next pick
+    rewardChoice: '', // '' | 'banked' | 'watched' at the final buzzer
+    bankedCents: 0 // cents banked from this game when rewardChoice === 'banked'
+  };
+}
+
+export function freshRewards() {
+  return {
+    fullGameCents: DEFAULT_FULL_GAME_CENTS, // $2.50 per 20-shot full game
+    bankCents: 0, // cents saved toward Lynx memorabilia
+    goalId: 'hoop', // 'hoop' | 'hoodie' | 'jersey'
+    certificateOpen: false, // true when showing the Certificate page for Dad
+    redeemed: [], // [{ id, name, priceCents, day }]
+    watch: {
+      channel: 'crunchlabs',
+      crunchlabs: { videoId: null, position: 0 },
+      smartgirls: { videoId: null, position: 0 }
+    }
   };
 }
 
@@ -85,7 +103,9 @@ export const DEFAULT_SETTINGS = {
   speech: true, // read-aloud button on story shots
   length: 'full',
   autoLevel: true, // difficulty follows how shots are going
-  autoUnlock: true // new plays unlock along the path
+  autoUnlock: true, // new plays unlock along the path
+  rewards: true, // post-game reward choice (Bank for Lynx or Watch)
+  watchRewards: true // allow choosing CrunchLabs / Smart Girls video breaks
 };
 
 // A new install starts with Equations only; the rest unlock along the path
@@ -100,6 +120,7 @@ export const state = {
   lab: { a: 6, b: 3, op: '+' },
   game: freshGame(),
   season: freshSeason(),
+  rewards: freshRewards(),
   // Concepts paused from a shot ("I'm not ready for … yet"), until a grown-up
   // turns them back on: [{ kind, key, label, day }]. key '*' pauses the whole
   // play (it's switched off in the playbook); for Equations the key is an
@@ -131,8 +152,8 @@ let frozen = false; // set while restoring a copy, so nothing overwrites it befo
 const isBits = (arr) => Array.isArray(arr) && arr.every((x) => x === 0 || x === 1);
 
 function savedState() {
-  const { updatedAt, mode, level, playbook, progress, ops, settings, lab, game, season, paused } = state;
-  return { updatedAt, mode, level, playbook, progress, ops, settings, lab, game, season, paused };
+  const { updatedAt, mode, level, playbook, progress, ops, settings, lab, game, season, rewards, paused } = state;
+  return { updatedAt, mode, level, playbook, progress, ops, settings, lab, game, season, rewards, paused };
 }
 
 export function serializeState() {
@@ -222,7 +243,7 @@ export function applySavedState(raw) {
   state.settings = { ...DEFAULT_SETTINGS };
   const s = saved.settings;
   if (s && typeof s === 'object' && !Array.isArray(s)) {
-    for (const key of ['sound', 'speech', 'autoLevel', 'autoUnlock']) {
+    for (const key of ['sound', 'speech', 'autoLevel', 'autoUnlock', 'rewards', 'watchRewards']) {
       if (typeof s[key] === 'boolean') state.settings[key] = s[key];
     }
     if (LENGTHS[s.length]) state.settings.length = s.length;
@@ -248,6 +269,8 @@ export function applySavedState(raw) {
   loadGame(saved.game);
   state.season = freshSeason();
   loadSeason(saved.season);
+  state.rewards = freshRewards();
+  loadRewards(saved.rewards);
 
   const log = raw.log ?? saved.log;
   if (log && isLog(log)) {
@@ -295,6 +318,8 @@ function loadGame(g) {
   if (Array.isArray(g.skips)) game.skips = g.skips.filter(isSkipRecord);
   if (Array.isArray(g.resting)) game.resting = g.resting.filter((id) => PLAY_IDS.includes(id));
   if (PLAY_IDS.includes(g.skipped)) game.skipped = g.skipped;
+  if (g.rewardChoice === 'banked' || g.rewardChoice === 'watched') game.rewardChoice = g.rewardChoice;
+  if (isInt(g.bankedCents) && g.bankedCents <= 10000) game.bankedCents = g.bankedCents;
   game.assisted = g.assisted === true;
   game.comfort = g.comfort === true;
   for (const k of ['call', 'headline']) {
@@ -341,6 +366,40 @@ function loadSeason(s) {
       .slice(-60));
   }
   state.season = season;
+}
+
+function loadRewards(r) {
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return;
+  const rewards = freshRewards();
+  if (REWARD_RATES.includes(r.fullGameCents)) rewards.fullGameCents = r.fullGameCents;
+  if (isInt(r.bankCents) && r.bankCents <= 1_000_000) rewards.bankCents = r.bankCents;
+  if (GEAR_IDS.includes(r.goalId)) rewards.goalId = r.goalId;
+  if (Array.isArray(r.redeemed)) {
+    rewards.redeemed = r.redeemed
+      .filter((x) => x && typeof x === 'object' && GEAR_IDS.includes(x.id)
+        && typeof x.name === 'string' && x.name.trim().length > 0 && x.name.length <= 100
+        && isInt(x.priceCents) && x.priceCents <= 100_000
+        && isDay(x.day))
+      .map(({ id, name, priceCents, day }) => ({ id, name: name.trim(), priceCents, day }))
+      .slice(-100);
+  }
+  const w = r.watch;
+  if (w && typeof w === 'object' && !Array.isArray(w)) {
+    if (w.channel === 'crunchlabs' || w.channel === 'smartgirls') rewards.watch.channel = w.channel;
+    for (const ch of ['crunchlabs', 'smartgirls']) {
+      const slot = w[ch];
+      if (slot && typeof slot === 'object') {
+        if (typeof slot.videoId === 'string' && /^[A-Za-z0-9_-]{11}$/.test(slot.videoId)) {
+          rewards.watch[ch].videoId = slot.videoId;
+        }
+        if (isInt(slot.position) && slot.position <= 86400) {
+          rewards.watch[ch].position = slot.position;
+        }
+      }
+    }
+  }
+  rewards.certificateOpen = r.certificateOpen === true && rewards.bankCents >= LYNX_GEAR[rewards.goalId].priceCents;
+  state.rewards = rewards;
 }
 
 // ---------- Backup copies ----------

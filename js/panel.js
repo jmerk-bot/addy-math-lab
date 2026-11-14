@@ -11,6 +11,7 @@ import { renderGame, weekHtml } from './game.js';
 import { dayKey, escHtml } from './kit.js';
 import { logEvent, logStatus } from './log.js';
 import { cloudStatus, onCloudStatus, setCloudToken, clearCloudToken, syncWithCloud } from './cloud.js';
+import { REWARD_RATES, formatDollars, getGear } from './rewards.js';
 
 const $ = (id) => document.getElementById(id);
 const TABS = ['playbook', 'stats', 'settings'];
@@ -188,6 +189,11 @@ function shotChartHtml() {
 
 function statsHtml() {
   const s = state.season;
+  const r = state.rewards;
+  const goal = getGear(r.goalId);
+  const wonList = r.redeemed.length
+    ? r.redeemed.map((x) => `${escHtml(x.name)} (${formatDollars(x.priceCents)} · ${showDay(x.day)})`).join(' · ')
+    : 'None redeemed yet';
   return `
     <div class="coach-section">
       <h3>Shot chart · swishes lately</h3>
@@ -196,6 +202,11 @@ function statsHtml() {
     <div class="coach-section">
       <h3>This week</h3>
       ${weekHtml(s)}
+    </div>
+    <div class="coach-section">
+      <h3>Lynx Gear Bank</h3>
+      <p class="coach-season">${formatDollars(r.bankCents)} saved toward ${escHtml(goal.name)} (${formatDollars(goal.priceCents)})</p>
+      <p class="coach-note">Certificates redeemed: ${wonList}</p>
     </div>
     <div class="coach-section">
       <h3>Season</h3>
@@ -221,10 +232,21 @@ function settingsHtml() {
     </button>`).join('');
   const levels = LEVELS.map((level) =>
     `<button class="level-btn ${state.level === level ? 'active' : ''}" data-action="level" data-value="${level}"><span class="level-name">${LEVEL_NAMES[level]}</span></button>`).join('');
+  const rates = REWARD_RATES.map((cents) => `
+    <button class="level-btn ${state.rewards.fullGameCents === cents ? 'active' : ''}" data-action="reward-rate" data-value="${cents}">
+      <span class="level-name">${formatDollars(cents)}</span><span class="level-desc">per full game</span>
+    </button>`).join('');
   return `
     <div class="coach-section">
       <h3>Game length</h3>
       <div class="level-row">${lengths}</div>
+    </div>
+    <div class="coach-section">
+      <h3>Post-game rewards</h3>
+      ${toggleHtml('rewards', 'Lynx Bank & Watch rewards', 'Choose at the final buzzer: bank dollars for Lynx gear or watch a break')}
+      ${toggleHtml('watchRewards', 'Video break option', "CrunchLabs and Amy Poehler's Smart Girls in the kid-safe viewer")}
+      <p class="coach-note">Lynx Bank rate (scales by unassisted shots solved; a quick game is half a full game):</p>
+      <div class="level-row">${rates}</div>
     </div>
     <div class="coach-section">
       <h3>Coaching</h3>
@@ -485,6 +507,12 @@ function setLength(key) {
   renderGame();
 }
 
+function setRewardRate(cents) {
+  if (!REWARD_RATES.includes(cents)) return;
+  state.rewards.fullGameCents = cents;
+  renderGame();
+}
+
 function clearSeason() {
   logEvent('reset');
   resetSeason();
@@ -537,6 +565,7 @@ const ACTIONS = {
   'op': toggleOp,
   'setting': toggleSetting,
   'length': setLength,
+  'reward-rate': setRewardRate,
   'reset-season': ask('reset-season'),
   'cloud-save': saveCloudSettings,
   'cloud-clear': clearCloudSettings,

@@ -88,6 +88,7 @@
         <div id="pregame-plays" class="play-chips" aria-label="Plays in today's game"></div>
         <p id="pregame-new" class="new-note" hidden></p>
         <button class="big-btn" data-action="tip-off">Tip-off 🏀</button>
+        <div id="lynx-bank-pregame" class="lynx-bank-wrap"></div>
         <div id="week-pregame" class="week-wrap"></div>
         <div id="season-pregame" class="season"></div>
       </section>
@@ -181,6 +182,7 @@
         <p id="final-stats" class="card-sub"></p>
         <ul id="final-levelups" class="level-ups" hidden></ul>
         <p id="final-unlock" class="new-note" hidden></p>
+        <div id="final-reward" class="final-reward-wrap"></div>
         <div class="final-actions">
           <button id="film-btn" class="link-btn" data-action="film" hidden>Film room 🎬</button>
           <button class="big-btn" data-action="new-game">New game 🏀</button>
@@ -284,7 +286,13 @@
         </div>
       </section>
     </div>
+
+    <!-- VIEW 3: OFFICIAL LYNX GEAR CERTIFICATE (shown when Addy hits her Lynx Bank goal) -->
+    <div id="view-certificate" class="view cert-view" hidden></div>
   </main>
+
+  <!-- Kid-safe reward video viewer: CrunchLabs & Amy Poehler's Smart Girls (js/watch.js) -->
+  <div id="watch-overlay" class="overlay watch-overlay" hidden></div>
 
   <!-- "Change the Game", for the grown-up: the playbook and training path, stats, settings -->
   <div id="coach" class="overlay" hidden>

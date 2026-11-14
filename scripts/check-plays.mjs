@@ -399,6 +399,7 @@ function newSeason(level = 'starter', unlocked = ['equation']) {
   st.ops = [...OPS];
   st.paused = [];
   st.settings = { ...S.DEFAULT_SETTINGS };
+  st.rewards = S.freshRewards();
   S.resetSeason();
   S.resetGame();
   L.loadLog();
@@ -708,6 +709,93 @@ console.log('Journey log: replays exactly, keeps a game in progress, logs change
   for (const needle of ['Olivia Miles', 'Liv', 'Napheesa Collier', 'Phe']) {
     if (!linesSource.includes(needle)) fail('lines', `missing ${needle} in js/lines.js`);
   }
+
+  // Rewards: Lynx Gear Bank ($2.50 per 20-shot full game), 3 switchable Lynx
+  // Online Store items, Official Certificate page, and kid-safe Watch viewer
+  // (CrunchLabs & Amy Poehler's Smart Girls).
+  for (const mod of ['js/rewards.js', 'js/watch.js']) {
+    if (!swSource.includes(`./${mod}`)) fail('rewards', `${mod} missing from sw.js APP_SHELL`);
+  }
+  const R = await import('../js/rewards.js');
+  const W = await import('../js/watch.js');
+  if (R.GEAR_IDS.length !== 3) fail('rewards', `expected 3 Lynx gear options, got ${R.GEAR_IDS.length}`);
+  for (const id of R.GEAR_IDS) {
+    const item = R.LYNX_GEAR[id];
+    if (!item?.name || !item?.svg || !isInt(item.priceCents) || item.priceCents < 1000) fail('rewards', `bad gear item ${id}`, item);
+  }
+  if (R.centsForShots(20, 250) !== 250 || R.centsForShots(10, 250) !== 125) {
+    fail('rewards', 'full game ($2.50) and quick game ($1.25) math mismatch');
+  }
+  for (const ch of W.CHANNEL_IDS) {
+    const list = W.WATCH_CHANNELS[ch]?.videos || [];
+    if (list.length < 25) fail('watch', `${ch} has only ${list.length} videos`);
+    for (const v of list) {
+      if (!/^[A-Za-z0-9_-]{11}$/.test(v.id) || dirty(v.title) || !v.title) fail('watch', `bad video in ${ch}`, v);
+    }
+  }
+
+  // End-to-end banking, goal switching, certificate trigger, and redemption
+  newSeason('starter');
+  S.state.rewards.goalId = 'hoodie'; // $50.00
+  for (let g = 1; g <= 12; g++) {
+    playGame(1.0); // 20 unassisted makes = $2.50 per full game
+    G.bankGameReward();
+    G.bankGameReward(); // double-click must be ignored
+  }
+  if (S.state.rewards.bankCents !== 3000) fail('rewards', `expected 3000 cents after 12 perfect full games, got ${S.state.rewards.bankCents}`);
+  if (G.certificateIsOpen()) fail('rewards', 'certificate should not open yet for $50 hoodie at $30 banked');
+
+  // Switching goal to $30 Lynx Mini Hoop Set when already at $30.00 opens the Certificate!
+  G.pickGear('hoop');
+  if (!G.certificateIsOpen()) fail('rewards', 'switching to $30 hoop at $30 banked should open certificate');
+  G.closeCertificate({ silent: true });
+  if (S.state.rewards.bankCents !== 3000) fail('rewards', 'closing certificate must not spend banked cents');
+  G.openCertificate();
+  if (!G.certificateIsOpen()) fail('rewards', 'openCertificate should reopen when goal is reached');
+
+  // Play one quick game ($1.25) and bank it ($31.25 total), then Dad redeems the $30 hoop -> $1.25 rolls over!
+  G.closeCertificate({ silent: true });
+  S.state.settings.length = 'quick';
+  playGame(1.0);
+  G.bankGameReward();
+  if (S.state.rewards.bankCents !== 3125) fail('rewards', `expected 3125 cents, got ${S.state.rewards.bankCents}`);
+  G.pickGear('hoop');
+  G.confirmRedeemCertificate();
+  if (S.state.rewards.bankCents !== 125) fail('rewards', `expected 125 leftover cents after $30 redeem, got ${S.state.rewards.bankCents}`);
+  if (S.state.rewards.redeemed.length !== 1 || S.state.rewards.redeemed[0].id !== 'hoop') {
+    fail('rewards', 'redeemed item not recorded', S.state.rewards.redeemed);
+  }
+  if (L.logEvents().at(-1)?.e !== 'redeem') fail('rewards', 'redeem event not logged');
+
+  // Choosing Watch instead of banking locks out banking for that game and switches channels cleanly
+  playGame(1.0);
+  G.startGameWatch('smartgirls');
+  if (S.state.game.rewardChoice !== 'watched') fail('watch', 'rewardChoice not marked watched');
+  const bankBefore = S.state.rewards.bankCents;
+  G.bankGameReward();
+  if (S.state.rewards.bankCents !== bankBefore) fail('watch', 'should not allow banking after choosing Watch');
+  W.switchWatchChannel();
+  if (S.state.rewards.watch.channel !== 'crunchlabs') fail('watch', 'switchWatchChannel did not switch to crunchlabs');
+  W.nextWatchVideo();
+  W.closeWatch({ silent: true });
+
+  // Rewards persist across serializeState/applySavedState and backup copies
+  const rewardSnap = S.serializeState();
+  const rewardBackup = S.readBackup(JSON.stringify(S.backupCopy()));
+  if (!rewardBackup || rewardBackup.state.rewards.bankCents !== 125) {
+    fail('rewards', 'backupCopy did not include rewards', rewardBackup?.state?.rewards);
+  }
+  S.state.rewards = S.freshRewards();
+  S.applySavedState(rewardSnap);
+  if (S.state.rewards.bankCents !== 125 || S.state.rewards.redeemed.length !== 1) {
+    fail('rewards', 'rewards state lost across applySavedState', S.state.rewards);
+  }
+  S.state.rewards = S.freshRewards();
+  S.applySavedState(rewardBackup);
+  if (S.state.rewards.bankCents !== 125 || S.state.rewards.redeemed.length !== 1) {
+    fail('rewards', 'rewards state lost across backup envelope restore', S.state.rewards);
+  }
+  console.log('Rewards: Lynx Gear Bank ($2.50/game), 3 store goals, certificate & kid-safe Watch viewer checked.');
 }
 
 if (failures) {

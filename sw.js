@@ -36,6 +36,8 @@ const APP_SHELL = [
   './js/panel.js',
   './js/lines.js',
   './js/teams.js',
+  './js/rewards.js',
+  './js/watch.js',
   './js/log.js',
   './js/cloud.js',
   './js/pwa.js',

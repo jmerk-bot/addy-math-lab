@@ -5,10 +5,16 @@ import { state, loadState, saveState } from './state.js';
 import { PLAYS, PATH } from './plays.js';
 import { playChime, setSound, speak } from './audio.js';
 import { clampLab, renderLab, setLabOp, stepA, stepB } from './lab.js';
-import { tipOff, pickOpponent, randomOpponent, newGame, pressKey, selectBox, askCoach, skipChoices, skipShot, nextShot, resumeHalf, renderGame } from './game.js';
+import {
+  tipOff, pickOpponent, randomOpponent, newGame, pressKey, selectBox, askCoach,
+  skipChoices, skipShot, nextShot, resumeHalf, renderGame,
+  pickGear, bankGameReward, showWatchPicker, startGameWatch,
+  openCertificate, closeCertificate, askRedeemCertificate, confirmRedeemCertificate, certificateIsOpen
+} from './game.js';
 import { openBoard, openShowMe, openIntro, openSkip, openFilm, sheetNext, sheetPrev, closeSheet, sheetIsOpen } from './sheets.js';
 import { openCoach, renderCoach, coachActions, backupPicked } from './panel.js';
 import { loadLog, logStart } from './log.js';
+import { initWatch, watchOpen, toggleWatchPlay, nextWatchVideo, switchWatchChannel, closeWatch } from './watch.js';
 import { initPwa } from './pwa.js';
 import { initCloud } from './cloud.js';
 
@@ -16,12 +22,14 @@ const $ = (id) => document.getElementById(id);
 
 function switchMode(newMode, { boot = false } = {}) {
   if (newMode !== 'game' && newMode !== 'lab') return;
+  if (!boot && certificateIsOpen()) closeCertificate({ silent: true });
   state.mode = newMode;
   $('tab-game').classList.toggle('active', newMode === 'game');
   $('tab-lab').classList.toggle('active', newMode === 'lab');
 
-  $('view-game').hidden = newMode !== 'game';
-  $('view-lab').hidden = newMode !== 'lab';
+  const showCert = certificateIsOpen();
+  $('view-game').hidden = showCert || newMode !== 'game';
+  $('view-lab').hidden = showCert || newMode !== 'lab';
 
   renderLabBanner();
   if (!boot) playChime(3);
@@ -104,6 +112,20 @@ const actions = {
   ...coachActions,
   'pick-opponent': (value) => pickOpponent(value),
   'random-opponent': () => randomOpponent(),
+  'pick-gear': (value) => pickGear(value),
+  'reward-bank': () => bankGameReward(),
+  'reward-watch-pick': () => showWatchPicker(true),
+  'reward-watch-back': () => showWatchPicker(false),
+  'reward-watch-start': (value) => startGameWatch(value),
+  'cert-open': () => openCertificate(),
+  'cert-close': () => closeCertificate(),
+  'cert-redeem-ask': () => askRedeemCertificate(true),
+  'cert-redeem-cancel': () => askRedeemCertificate(false),
+  'cert-redeem-yes': () => confirmRedeemCertificate(),
+  'watch-toggle': () => toggleWatchPlay(),
+  'watch-next': () => nextWatchVideo(),
+  'watch-switch': () => switchWatchChannel(),
+  'watch-close': () => closeWatch(),
   'new-game': () => newGame(),
   'tip-off': () => startGame(),
   'key': (value) => pressKey(value),
@@ -161,6 +183,7 @@ document.addEventListener('keydown', (event) => {
     else if (event.key === 'Escape') actions['sheet-close']();
     return;
   }
+  if (watchOpen() || certificateIsOpen()) return;
   if (state.mode !== 'game' || !$('coach').hidden) return;
   const { status } = state.game;
   let handled = true;
@@ -202,11 +225,13 @@ function refreshAfterStateLoad() {
 loadState();
 loadLog();
 logStart(state);
+initWatch();
 refreshAfterStateLoad();
 initPwa();
 saveState({ touch: false });
 initCloud(() => {
   closeSheet();
+  closeWatch({ silent: true });
   refreshAfterStateLoad();
   saveState({ touch: false });
 });
